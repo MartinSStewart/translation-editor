@@ -456,20 +456,31 @@ translationView hiddenLanguages translationData changes translationGroup =
                                     Element.none
 
                                 else
-                                    Element.Lazy.lazy5
-                                        translationInput
-                                        translationData
-                                        (Dict.get
+                                    case
+                                        Dict.get
                                             { path = translationGroup.path
                                             , functionName = id.functionName
                                             , filePath = id.filePath
                                             }
                                             changes
-                                            |> Maybe.withDefault secretText
-                                        )
-                                        translationGroup.path
-                                        id.functionName
-                                        id.filePath
+                                    of
+                                        Just change ->
+                                            Element.Lazy.lazy5
+                                                translationInputWithChange
+                                                translationData
+                                                change
+                                                translationGroup.path
+                                                id.functionName
+                                                id.filePath
+
+                                        Nothing ->
+                                            Element.Lazy.lazy5
+                                                translationInput
+                                                translationData
+                                                Nothing
+                                                translationGroup.path
+                                                id.functionName
+                                                id.filePath
 
                             Nothing ->
                                 Element.none
@@ -507,32 +518,29 @@ lightPurple =
     Element.rgb255 152 128 193
 
 
-{-| We can't use `Maybe String` because it would prevent us from using Html.Lazy so we use this magic string to indicate when there's no value.
--}
-secretText : String
-secretText =
-    "wer;jl13215213j;"
-
-
-translationInput :
+translationInputWithChange :
     List TranslationDeclaration
     -> String
     -> Nonempty String
     -> String
     -> String
     -> Element FrontendMsg
-translationInput translationData rawChange translationGroup functionName filePath =
+translationInputWithChange a b c d e =
+    translationInput a (Just b) c d e
+
+
+translationInput :
+    List TranslationDeclaration
+    -> Maybe String
+    -> Nonempty String
+    -> String
+    -> String
+    -> Element FrontendMsg
+translationInput translationData change translationGroup functionName filePath =
     let
         translationId : TranslationId
         translationId =
             { path = translationGroup, functionName = functionName, filePath = filePath }
-
-        change =
-            if rawChange == secretText then
-                Nothing
-
-            else
-                Just rawChange
     in
     case getTranslation translationId translationData of
         Just (Ok ( _, translation )) ->
