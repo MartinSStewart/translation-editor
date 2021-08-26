@@ -351,7 +351,7 @@ parseTranslationValue expression =
 
 
 invalidRecordNames =
-    Set.fromList [ "en", "fr", "it", "dk", "da", "de", "sv", "es" ]
+    Set.fromList [ "en", "fr", "it", "dk", "da", "de", "sv", "es", "nl" ]
 
 
 getLanguageShortName : String -> Maybe String
@@ -383,6 +383,9 @@ getLanguageShortName functionName =
 
     else if contains "spanish" || contains "spain" then
         Just "es"
+
+    else if contains "dutch" || contains "holland" || contains "netherlands" then
+        Just "nl"
 
     else
         Nothing
@@ -417,6 +420,9 @@ getLanguageLongName functionName =
 
     else if contains "spanish" || contains "spain" then
         Just "spanish"
+
+    else if contains "dutch" || contains "holland" || contains "netherlands" then
+        Just "dutch"
 
     else
         Nothing

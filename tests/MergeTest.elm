@@ -5,9 +5,11 @@ import Editor exposing (Error(..))
 import Elm.Syntax.Expression exposing (Expression(..))
 import Expect
 import Github
+import List.Extra as List
 import List.Nonempty exposing (Nonempty(..))
 import Set
 import Test exposing (describe, test)
+import TestText
 import TranslationParser exposing (Content(..))
 import Types exposing (EditorModel, SubmitStatus(..))
 
@@ -131,6 +133,40 @@ tests =
 
                     Err _ ->
                         Expect.fail "Failed to parse"
+        , describe "Parse tests"
+            [ test "test" <|
+                \_ ->
+                    case TranslationParser.parse "A.elm" TestText.exampleCode of
+                        Ok translations ->
+                            List.find
+                                (\translation ->
+                                    translation.functionName == "swedishTexts"
+                                )
+                                translations
+                                |> Debug.log "data"
+                                |> Maybe.map
+                                    (\swedishTranslation ->
+                                        Dict.get
+                                            (Nonempty "success" [ "form3", "emailAddressText" ])
+                                            swedishTranslation.translations
+                                    )
+                                |> Expect.equal
+                                    (Just
+                                        (Just
+                                            (Ok
+                                                { value = Nonempty (TextContent "🚧") []
+                                                , range =
+                                                    { start = { column = 0, row = 0 }
+                                                    , end = { column = 0, row = 0 }
+                                                    }
+                                                }
+                                            )
+                                        )
+                                    )
+
+                        Err _ ->
+                            Expect.fail "Failed to parse"
+            ]
         ]
 
 

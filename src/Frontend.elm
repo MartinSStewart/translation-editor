@@ -284,7 +284,7 @@ update msg model =
                                 |> Tuple.mapFirst (\newState -> { model | state = newState })
 
                         Err _ ->
-                            ( model, Cmd.none )
+                            ( { model | state = ParsingFailed { path = translation.path } }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -869,7 +869,9 @@ view model =
                             List.length loadingModel.filesRemaining
                     in
                     if loadedContents == 0 then
-                        "Downloading repository..." |> Element.text
+                        "Downloading repository..."
+                            |> Element.text
+                            |> Element.el [ Element.padding 16 ]
 
                     else
                         String.fromInt loadedContents
@@ -877,6 +879,7 @@ view model =
                             ++ String.fromInt (remainingFiles + loadedContents)
                             ++ " modules loaded."
                             |> Element.text
+                            |> Element.el [ Element.padding 16 ]
 
                 Parsing { parsedFiles, unparsedFiles } ->
                     let
@@ -888,11 +891,16 @@ view model =
                         ++ String.fromInt (List.length unparsedFiles + parsedCount)
                         ++ " modules parsed."
                         |> Element.text
+                        |> Element.el [ Element.padding 16 ]
 
                 LoadFailed error ->
                     "Something went wrong when loading the repo: "
                         ++ httpToString error
                         |> Element.text
+                        |> Element.el
+                            [ Element.Font.color errorColor
+                            , Element.padding 16
+                            ]
 
                 Editor editorModel ->
                     Editor.view
@@ -904,10 +912,17 @@ view model =
                         editorModel
 
                 ParsingFailed { path } ->
-                    "Failed to parse " ++ path |> Element.text
+                    "Failed to parse "
+                        ++ path
+                        |> Element.text
+                        |> Element.el
+                            [ Element.Font.color errorColor
+                            , Element.padding 16
+                            ]
 
                 Authenticate ->
                     Element.text "Authenticating..."
+                        |> Element.el [ Element.padding 16 ]
             )
         ]
     }
