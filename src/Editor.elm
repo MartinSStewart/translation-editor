@@ -342,7 +342,7 @@ view model editorModel =
                     , Element.Background.color (Element.rgb 0.5 0.5 0.5)
                     ]
                     [ headerView
-                        editorModel.filterByUnfinished
+                        editorModel.showOnlyMissingTranslations
                         editorModel.allLanguages
                         editorModel.hiddenLanguages
                         editorModel.submitStatus
@@ -359,7 +359,7 @@ view model editorModel =
                             ]
                             (List.filterMap
                                 (\group ->
-                                    if not editorModel.filterByUnfinished || hasUnfinishedTranslations group editorModel then
+                                    if not editorModel.showOnlyMissingTranslations || hasUnfinishedTranslations group editorModel then
                                         translationView
                                             editorModel.hiddenLanguages
                                             model.translationData
@@ -430,17 +430,18 @@ buttonAttributes =
     , Element.paddingXY 12 7
     , Element.Border.rounded 4
     , Element.Background.color (Element.rgb 0.9 0.9 0.9)
+    , Element.Font.center
     ]
 
 
 headerView : Bool -> Set String -> Set String -> SubmitStatus -> Bool -> Element FrontendMsg
-headerView filterByUnfinished allLanguages hiddenLanguages submitStatus noChanges =
+headerView showOnlyMissingTranslations allLanguages hiddenLanguages submitStatus noChanges =
     Element.row
         [ Element.width Element.fill
         , Element.Background.color white
         , Element.paddingXY 8 0
         , Element.height (Element.px headerHeight)
-        , Element.spacing 48
+        , Element.spacing 24
         ]
         [ Element.row
             [ Element.spacing 8 ]
@@ -448,8 +449,8 @@ headerView filterByUnfinished allLanguages hiddenLanguages submitStatus noChange
         , Element.el
             []
             (Element.Input.button
-                (toggleButtonAttributes filterByUnfinished)
-                { onPress = Just PressedToggleFilterByUnfinished, label = Element.text "Filter unfinished" }
+                (toggleButtonAttributes (not showOnlyMissingTranslations))
+                { onPress = Just PressedToggleOnlyMissingTranslations, label = Element.text "Only missing translations" }
             )
         , Element.row
             [ Element.spacing 8 ]

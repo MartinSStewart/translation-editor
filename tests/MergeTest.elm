@@ -9,8 +9,8 @@ import List.Extra as List
 import List.Nonempty exposing (Nonempty(..))
 import Set
 import Test exposing (describe, test)
-import TestText
 import TranslationParser exposing (Content(..))
+import TranslationTestCode
 import Types exposing (EditorModel, SubmitStatus(..))
 
 
@@ -86,7 +86,7 @@ tests =
                                 , submitStatus = NotSubmitted { pressedSubmit = False }
                                 , pullRequestMessage = ""
                                 , hiddenLanguages = Set.empty
-                                , filterByUnfinished = False
+                                , showOnlyMissingTranslations = False
                                 , changeCounter = 0
                                 , allLanguages = Set.fromList [ "en", "sv" ]
                                 , groups = []
@@ -124,7 +124,7 @@ tests =
                                 , pullRequestMessage = ""
                                 , hiddenLanguages = Set.empty
                                 , changeCounter = 0
-                                , filterByUnfinished = False
+                                , showOnlyMissingTranslations = False
                                 , allLanguages = Set.fromList [ "en", "sv" ]
                                 , groups = []
                                 }
@@ -136,7 +136,7 @@ tests =
         , describe "Parse tests"
             [ test "test" <|
                 \_ ->
-                    case TranslationParser.parse "A.elm" TestText.exampleCode of
+                    case TranslationParser.parse "A.elm" TranslationTestCode.code of
                         Ok translations ->
                             List.find
                                 (\translation ->

@@ -127,33 +127,44 @@ parseFiles parsingModel =
             )
 
         [] ->
-            let
-                translations : List TranslationDeclaration
-                translations =
-                    List.concatMap .result parsingModel.parsedFiles
-            in
-            ( Dict.foldl
-                (\k v s -> updateChanges k v s |> Tuple.first)
-                { submitStatus = NotSubmitted { pressedSubmit = False }
-                , files =
-                    List.map
-                        (\file -> ( file.path, { original = file.original } ))
-                        parsingModel.parsedFiles
-                        |> Dict.fromList
-                , translations = translations
-                , groups = groupTranslations translations
-                , oauthToken = parsingModel.oauthToken
-                , changes = Dict.empty
-                , changeCounter = 0
-                , filterByUnfinished = False
-                , pullRequestMessage = ""
-                , hiddenLanguages = Set.empty
-                , allLanguages = List.map .language translations |> Set.fromList
-                }
-                parsingModel.loadedChanges
-                |> Editor
-            , Cmd.none
-            )
+            initEditor parsingModel
+
+
+initEditor :
+    { a
+        | parsedFiles : List { path : String, result : List TranslationDeclaration, original : String }
+        , oauthToken : Github.OAuthToken
+        , loadedChanges : Dict TranslationId String
+    }
+    -> ( State, Cmd msg )
+initEditor parsingModel =
+    let
+        translations : List TranslationDeclaration
+        translations =
+            List.concatMap .result parsingModel.parsedFiles
+    in
+    ( Dict.foldl
+        (\k v s -> updateChanges k v s |> Tuple.first)
+        { submitStatus = NotSubmitted { pressedSubmit = False }
+        , files =
+            List.map
+                (\file -> ( file.path, { original = file.original } ))
+                parsingModel.parsedFiles
+                |> Dict.fromList
+        , translations = translations
+        , groups = groupTranslations translations
+        , oauthToken = parsingModel.oauthToken
+        , changes = Dict.empty
+        , changeCounter = 0
+        , showOnlyMissingTranslations = False
+        , pullRequestMessage = ""
+        , hiddenLanguages = Set.empty
+        , allLanguages = List.map .language translations |> Set.fromList
+        }
+        parsingModel.loadedChanges
+        |> Editor
+    , Cmd.none
+    )
 
 
 update : FrontendMsg -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
@@ -517,10 +528,10 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
-        PressedToggleFilterByUnfinished ->
+        PressedToggleOnlyMissingTranslations ->
             case model.state of
                 Editor editor ->
-                    ( { model | state = Editor { editor | filterByUnfinished = not editor.filterByUnfinished } }
+                    ( { model | state = Editor { editor | showOnlyMissingTranslations = not editor.showOnlyMissingTranslations } }
                     , Cmd.none
                     )
 
@@ -1000,10 +1011,10 @@ startView model =
           else
             Element.none
         , Element.column
-            [ Element.spacing 8 ]
+            [ Element.spacing 8, Element.width Element.fill ]
             [ if Env.isProduction then
                 Element.link
-                    Editor.buttonAttributes
+                    (Element.width Element.fill :: Editor.buttonAttributes)
                     { url =
                         Github.oauthLink
                             { clientId = Env.clientId
@@ -1011,15 +1022,15 @@ startView model =
                             , scopes = [ Github.RepoScope ]
                             , state = Nothing
                             }
-                    , label = Element.text "Login with OAuth (recommended)"
+                    , label = Element.text "Login with OAuth"
                     }
 
               else
                 Element.column
-                    [ Element.spacing 8 ]
+                    [ Element.spacing 8, Element.width Element.fill ]
                     [ Element.el
-                        (Element.Font.color (Element.rgb 0.5 0.5 0.5) :: Editor.buttonAttributes)
-                        (Element.text "Login with OAuth (recommended)")
+                        (Element.width Element.fill :: Element.Font.color (Element.rgb 0.5 0.5 0.5) :: Editor.buttonAttributes)
+                        (Element.text "Login with OAuth")
                     , Element.text "Disabled when running locally"
                     ]
             ]
@@ -1041,7 +1052,7 @@ startView model =
                 _ ->
                     Element.none
             , Element.Input.button
-                (Element.width Element.fill :: Element.Font.center :: Editor.buttonAttributes)
+                (Element.width Element.fill :: Editor.buttonAttributes)
                 { onPress = Just PressedSubmitPersonalAccessToken, label = Element.text "Submit token" }
             ]
         ]

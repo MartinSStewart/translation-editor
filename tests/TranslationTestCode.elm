@@ -1,8 +1,12 @@
-module TestText exposing (..)
+module TranslationTestCode exposing (..)
+
+{-| -}
 
 
-exampleCode : String
-exampleCode =
+{-| Code from <https://github.com/MartinSStewart/translation-test>
+-}
+code : String
+code =
     """module A exposing (..)
 
 
