@@ -64,6 +64,7 @@ type alias EditorModel =
     , hiddenLanguages : Set String
     , changeCounter : Int
     , showOnlyMissingTranslations : Bool
+    , name : String
 
     -- These fields can be derived from translations but we avoid that for performance
     -- This isn't a big issue as these values should never change
@@ -115,6 +116,7 @@ type FrontendMsg
     | PressedShowLanguage String
     | PressedHideLanguage String
     | TypedPullRequestMessage String
+    | TypedName String
     | DebounceFinished { changeCounter : Int }
     | PressedResetTranslationGroup { path : Nonempty String }
     | PressedCloseSubmitSuccessful

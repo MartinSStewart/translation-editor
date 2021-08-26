@@ -158,6 +158,7 @@ initEditor parsingModel =
         , changeCounter = 0
         , showOnlyMissingTranslations = False
         , pullRequestMessage = ""
+        , name = ""
         , hiddenLanguages = Set.empty
         , allLanguages = List.map .language translations |> Set.fromList
         }
@@ -439,7 +440,7 @@ update msg model =
                                 "master"
                                 ("edit-" ++ hash)
                                 changes
-                                (pullRequestMessage editor.pullRequestMessage)
+                                (pullRequestMessage editor.name editor.pullRequestMessage)
                                 |> Task.attempt PullRequestCreated
                             )
 
@@ -471,6 +472,16 @@ update msg model =
             ( case model.state of
                 Editor editor ->
                     { model | state = Editor { editor | pullRequestMessage = message } }
+
+                _ ->
+                    model
+            , Cmd.none
+            )
+
+        TypedName name ->
+            ( case model.state of
+                Editor editor ->
+                    { model | state = Editor { editor | name = name } }
 
                 _ ->
                     model
@@ -719,13 +730,26 @@ createPullRequest token targetBranch newBranch changes message =
             )
 
 
-pullRequestMessage : String -> String
-pullRequestMessage message =
-    if String.trim message == "" then
-        "I made some changes to the translation text using " ++ Env.domain
+pullRequestMessage : String -> String -> String
+pullRequestMessage name message =
+    "Changes made by: "
+        ++ (if String.trim name == "" then
+                "*no name given*"
 
-    else
-        String.trim message ++ "\n\n(This pull request was generated with " ++ Env.domain ++ ")"
+            else
+                name
+           )
+        ++ "\n\n"
+        ++ "Message: "
+        ++ (if String.trim message == "" then
+                "*no message*"
+
+            else
+                message
+           )
+        ++ "\n\n(This pull request was generated with "
+        ++ Env.domain
+        ++ ")"
 
 
 retryGetBranch :

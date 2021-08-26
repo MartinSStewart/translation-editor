@@ -144,6 +144,19 @@ submitConfirmView editorModel =
             [ Element.el [ Element.Font.bold ] (Element.text "Important!")
             , Element.text " Once submitted, you won't be able to edit your changes and this editor will be reset to fresh state. A programmer will review your changes and then merge them into the app."
             ]
+        , Element.Input.text
+            [ Element.width Element.fill ]
+            { onChange = TypedName
+            , text = editorModel.name
+            , placeholder = Nothing
+            , label =
+                Element.Input.labelAbove
+                    []
+                    (Element.paragraph
+                        []
+                        [ Element.text "Your name (so a dev can reach you on Slack if needed)" ]
+                    )
+            }
         , Element.Input.multiline
             [ Element.width Element.fill, Element.height <| Element.minimum 200 Element.shrink ]
             { onChange = TypedPullRequestMessage
