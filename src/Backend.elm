@@ -59,12 +59,12 @@ updateFromFrontend _ clientId msg model =
         GetZipRequest oauthToken ->
             ( model
             , Github.getBranchZip
-                { authToken = Just oauthToken, owner = Env.owner, repo = Env.repo, branchName = Nothing }
+                { authToken = Nothing, owner = Env.owner, repo = Env.repo, branchName = Nothing }
                 |> Task.onError
                     (\_ ->
                         -- Sometimes auth will cause the request to fail if it wasn't needed so we try again without auth here.
                         Github.getBranchZip
-                            { authToken = Nothing, owner = Env.owner, repo = Env.repo, branchName = Nothing }
+                            { authToken = Just oauthToken, owner = Env.owner, repo = Env.repo, branchName = Nothing }
                     )
                 |> Task.attempt (LoadedZipBackend clientId)
             )

@@ -43,6 +43,11 @@ repo =
     "translation-test"
 
 
+isProduction_ : String
+isProduction_ =
+    "false"
+
+
 isProduction : Bool
 isProduction =
-    mode == Production
+    String.toLower isProduction_ == "true"

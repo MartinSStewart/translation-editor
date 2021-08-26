@@ -63,6 +63,7 @@ type alias EditorModel =
     , pullRequestMessage : String
     , hiddenLanguages : Set String
     , changeCounter : Int
+    , filterByUnfinished : Bool
 
     -- These fields can be derived from translations but we avoid that for performance
     -- This isn't a big issue as these values should never change
@@ -117,6 +118,7 @@ type FrontendMsg
     | DebounceFinished { changeCounter : Int }
     | PressedResetTranslationGroup { path : Nonempty String }
     | PressedCloseSubmitSuccessful
+    | PressedToggleFilterByUnfinished
 
 
 type ToBackend

@@ -81,10 +81,10 @@ tests =
                                 , translations = translationDeclaration
                                 , oauthToken = Github.oauthToken ""
                                 , changes = Dict.fromList []
-                                , pressedSubmit = False
                                 , submitStatus = NotSubmitted { pressedSubmit = False }
                                 , pullRequestMessage = ""
                                 , hiddenLanguages = Set.empty
+                                , filterByUnfinished = False
                                 , changeCounter = 0
                                 , allLanguages = Set.fromList [ "en", "sv" ]
                                 , groups = []
@@ -122,6 +122,7 @@ tests =
                                 , pullRequestMessage = ""
                                 , hiddenLanguages = Set.empty
                                 , changeCounter = 0
+                                , filterByUnfinished = False
                                 , allLanguages = Set.fromList [ "en", "sv" ]
                                 , groups = []
                                 }

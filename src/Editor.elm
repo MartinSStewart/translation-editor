@@ -15,7 +15,7 @@ import Github
 import Html
 import Html.Attributes
 import List.Extra as List
-import List.Nonempty exposing (Nonempty)
+import List.Nonempty exposing (Nonempty(..))
 import Pretty
 import Set exposing (Set)
 import TranslationParser exposing (Content(..), TranslationDeclaration, TranslationValue)
@@ -210,51 +210,129 @@ changesSummaryView changes =
         |> Element.column []
 
 
+noTranslationsView : Element msg
+noTranslationsView =
+    let
+        url =
+            Github.ownerToString Env.owner ++ "/" ++ Env.repo
+    in
+    Element.column
+        [ Element.centerX
+        , Element.centerY
+        , Element.width <| Element.maximum 800 Element.fill
+        , Element.spacing 16
+        ]
+        [ Element.paragraph
+            []
+            [ Element.text "No translations found in "
+            , Element.newTabLink
+                [ Element.Font.color linkColor ]
+                { url = "https://github.com/" ++ url, label = Element.text url }
+            ]
+        , Element.paragraph [] [ Element.text "Translations must match this format:" ]
+        , """myTranslationsEnglish =
+        { showName = \\name -> "Hi my name is " ++ name ++ "!"
+        , login = "Login"
+        , yes = "Yes"
+        , email = \\email -> "Your email is " ++ Email.toString email ++ "."
+        }
+    
+    -- Function must contain a language in the name
+    myTranslationsSwedish =
+        { showName = \\name -> "Hej jag heter " ++ name ++ "!"
+        , login = "Logga in"
+        , yes = "Ja"
+        , email = \\email -> "Din e-post är " ++ Email.toString email ++ "."
+        }
+    """
+            |> Html.text
+            |> List.singleton
+            |> Html.div
+                [ Html.Attributes.style "white-space" "pre"
+                , Html.Attributes.style "line-height" "24px"
+                ]
+            |> Element.html
+            |> Element.el [ Element.Font.family [ Element.Font.monospace ] ]
+        ]
+
+
+isEnglish : { a | functionName : String } -> Bool
+isEnglish id =
+    TranslationParser.getLanguageShortName id.functionName == Just "en"
+
+
+hasUnfinishedTranslations : TranslationGroup -> EditorModel -> Bool
+hasUnfinishedTranslations group editorModel =
+    let
+        englishTranslation : Maybe (Nonempty Content)
+        englishTranslation =
+            List.Nonempty.toList group.ids
+                |> List.find isEnglish
+                |> Maybe.andThen
+                    (\id ->
+                        case
+                            getTranslation
+                                { path = group.path
+                                , functionName = id.functionName
+                                , filePath = id.filePath
+                                }
+                                editorModel.translations
+                        of
+                            Just (Ok ( _, { value } )) ->
+                                Just value
+
+                            _ ->
+                                Nothing
+                    )
+    in
+    List.Nonempty.toList group.ids
+        |> List.filter
+            (\id ->
+                case TranslationParser.getLanguageShortName id.functionName of
+                    Just language ->
+                        if Set.member language editorModel.hiddenLanguages then
+                            False
+
+                        else
+                            case
+                                getTranslation
+                                    { path = group.path
+                                    , functionName = id.functionName
+                                    , filePath = id.filePath
+                                    }
+                                    editorModel.translations
+                            of
+                                Just (Ok ( _, { value } )) ->
+                                    case value of
+                                        Nonempty (TextContent "") [] ->
+                                            True
+
+                                        Nonempty (TextContent "🚧") [] ->
+                                            True
+
+                                        Nonempty (TextContent "👷") [] ->
+                                            True
+
+                                        Nonempty (Placeholder _) [] ->
+                                            True
+
+                                        _ ->
+                                            not (isEnglish id) && Just value == englishTranslation
+
+                                _ ->
+                                    False
+
+                    Nothing ->
+                        False
+            )
+        |> List.isEmpty
+        |> not
+
+
 view : Model -> EditorModel -> Element FrontendMsg
 view model editorModel =
     if List.isEmpty editorModel.translations then
-        let
-            url =
-                Github.ownerToString Env.owner ++ "/" ++ Env.repo
-        in
-        Element.column
-            [ Element.centerX
-            , Element.centerY
-            , Element.width <| Element.maximum 800 Element.fill
-            , Element.spacing 16
-            ]
-            [ Element.paragraph
-                []
-                [ Element.text "No translations found in "
-                , Element.newTabLink
-                    [ Element.Font.color linkColor ]
-                    { url = "https://github.com/" ++ url, label = Element.text url }
-                ]
-            , Element.paragraph [] [ Element.text "Translations must match this format:" ]
-            , """myTranslationsEnglish =
-    { showName = \\name -> "Hi my name is " ++ name ++ "!"
-    , login = "Login"
-    , yes = "Yes"
-    , email = \\email -> "Your email is " ++ Email.toString email ++ "."
-    }
-
--- Function must contain a language in the name
-myTranslationsSwedish =
-    { showName = \\name -> "Hej jag heter " ++ name ++ "!"
-    , login = "Logga in"
-    , yes = "Ja"
-    , email = \\email -> "Din e-post är " ++ Email.toString email ++ "."
-    }
-"""
-                |> Html.text
-                |> List.singleton
-                |> Html.div
-                    [ Html.Attributes.style "white-space" "pre"
-                    , Html.Attributes.style "line-height" "24px"
-                    ]
-                |> Element.html
-                |> Element.el [ Element.Font.family [ Element.Font.monospace ] ]
-            ]
+        noTranslationsView
 
     else
         case editorModel.submitStatus of
@@ -264,6 +342,7 @@ myTranslationsSwedish =
                     , Element.Background.color (Element.rgb 0.5 0.5 0.5)
                     ]
                     [ headerView
+                        editorModel.filterByUnfinished
                         editorModel.allLanguages
                         editorModel.hiddenLanguages
                         editorModel.submitStatus
@@ -278,8 +357,19 @@ myTranslationsSwedish =
                             , Element.padding 8
                             , Element.scrollbarY
                             ]
-                            (List.map
-                                (translationView editorModel.hiddenLanguages model.translationData model.changes)
+                            (List.filterMap
+                                (\group ->
+                                    if not editorModel.filterByUnfinished || hasUnfinishedTranslations group editorModel then
+                                        translationView
+                                            editorModel.hiddenLanguages
+                                            model.translationData
+                                            model.changes
+                                            group
+                                            |> Just
+
+                                    else
+                                        Nothing
+                                )
                                 editorModel.groups
                             )
                         )
@@ -294,30 +384,38 @@ headerHeight =
     50
 
 
+toggleButtonAttributes : Bool -> List (Element.Attr () msg)
+toggleButtonAttributes isActive =
+    [ Element.Font.color white
+    , Element.height Element.fill
+    , Element.padding 8
+    , Element.Border.rounded 4
+    , Element.Background.color
+        (if isActive then
+            lightPurple
+
+         else
+            purple
+        )
+    ]
+
+
 hideLanguageView : Set String -> Set String -> Element FrontendMsg
 hideLanguageView allLanguages hiddenLanguages =
-    let
-        attributes =
-            [ Element.Font.color white
-            , Element.height Element.fill
-            , Element.padding 8
-            , Element.Border.rounded 4
-            ]
-    in
     Set.toList allLanguages
         |> List.sort
         |> List.map
             (\language ->
                 if Set.member language hiddenLanguages then
                     Element.Input.button
-                        (Element.Background.color lightPurple :: attributes)
+                        (toggleButtonAttributes True)
                         { onPress = Just (PressedShowLanguage language)
                         , label = Element.text language
                         }
 
                 else
                     Element.Input.button
-                        (Element.Background.color purple :: attributes)
+                        (toggleButtonAttributes False)
                         { onPress = Just (PressedHideLanguage language)
                         , label = Element.text language
                         }
@@ -335,8 +433,8 @@ buttonAttributes =
     ]
 
 
-headerView : Set String -> Set String -> SubmitStatus -> Bool -> Element FrontendMsg
-headerView allLanguages hiddenLanguages submitStatus noChanges =
+headerView : Bool -> Set String -> Set String -> SubmitStatus -> Bool -> Element FrontendMsg
+headerView filterByUnfinished allLanguages hiddenLanguages submitStatus noChanges =
     Element.row
         [ Element.width Element.fill
         , Element.Background.color white
@@ -347,6 +445,12 @@ headerView allLanguages hiddenLanguages submitStatus noChanges =
         [ Element.row
             [ Element.spacing 8 ]
             [ Element.text "Filter by language", hideLanguageView allLanguages hiddenLanguages ]
+        , Element.el
+            []
+            (Element.Input.button
+                (toggleButtonAttributes filterByUnfinished)
+                { onPress = Just PressedToggleFilterByUnfinished, label = Element.text "Filter unfinished" }
+            )
         , Element.row
             [ Element.spacing 8 ]
             [ Element.Input.button

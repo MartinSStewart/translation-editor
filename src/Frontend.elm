@@ -144,9 +144,8 @@ parseFiles parsingModel =
                 , groups = groupTranslations translations
                 , oauthToken = parsingModel.oauthToken
                 , changes = Dict.empty
-
-                --Dict.filter (\k _ -> ) parsingModel.loadedChanges
                 , changeCounter = 0
+                , filterByUnfinished = False
                 , pullRequestMessage = ""
                 , hiddenLanguages = Set.empty
                 , allLanguages = List.map .language translations |> Set.fromList
@@ -512,6 +511,16 @@ update msg model =
                                     , pullRequestMessage = ""
                                 }
                       }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        PressedToggleFilterByUnfinished ->
+            case model.state of
+                Editor editor ->
+                    ( { model | state = Editor { editor | filterByUnfinished = not editor.filterByUnfinished } }
                     , Cmd.none
                     )
 
