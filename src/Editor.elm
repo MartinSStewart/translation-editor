@@ -18,7 +18,7 @@ import List.Extra as List
 import List.Nonempty exposing (Nonempty(..))
 import Pretty
 import Set exposing (Set)
-import TranslationParser exposing (Content(..), TranslationDeclaration, TranslationValue)
+import TranslationParser exposing (Content(..), TranslationDeclaration)
 import Types exposing (EditorModel, FrontendMsg(..), SubmitStatus(..), TranslationGroup, TranslationId)
 
 
@@ -71,7 +71,7 @@ parseInput originalContent userText =
                                 , foundPlaceholder = False
                             }
 
-                ( _, _ ) ->
+                _ ->
                     { state | currentText = state.currentText ++ text }
         )
         { currentText = ""

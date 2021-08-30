@@ -2,14 +2,13 @@ module Types exposing (..)
 
 import AssocList exposing (Dict)
 import Browser exposing (UrlRequest)
-import Browser.Navigation exposing (Key)
+import Browser.Navigation
 import Bytes exposing (Bytes)
-import Github exposing (AccessTokenResponse, OAuthCode, OAuthToken, Scope)
+import Github exposing (AccessTokenResponse, OAuthCode, OAuthToken)
 import Http
 import Lamdera exposing (ClientId)
 import List.Nonempty exposing (Nonempty)
 import Set exposing (Set)
-import Time
 import TranslationParser exposing (TranslationDeclaration)
 import Url exposing (Url)
 
@@ -101,8 +100,7 @@ type alias BackendModel =
 
 type FrontendMsg
     = PressedLink UrlRequest
-    | UrlChanged Url
-    | GotRepository OAuthToken (Result Http.Error (List ( String, String )))
+    | UrlChanged
     | TypedPersonalAccessToken String
     | PressedSubmitPersonalAccessToken
     | GotLocalStorageData (Result String { key : String, value : Maybe String })
@@ -130,7 +128,6 @@ type ToBackend
 
 type BackendMsg
     = GotAccessToken ClientId (Result Http.Error AccessTokenResponse)
-    | GotRepositoryBackend (Result Http.Error { defaultBranch : String })
     | LoadedZipBackend ClientId (Result Http.Error Bytes)
 
 

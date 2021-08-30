@@ -1,7 +1,7 @@
 port module Frontend exposing (..)
 
 import AssocList as Dict exposing (Dict)
-import Browser exposing (Document, UrlRequest)
+import Browser exposing (Document)
 import Browser.Dom
 import Browser.Events
 import Browser.Navigation
@@ -11,7 +11,7 @@ import Element exposing (Element)
 import Element.Font
 import Element.Input
 import Env
-import Github exposing (OAuthCode, Scope)
+import Github exposing (OAuthCode)
 import Http
 import Json.Decode
 import Json.Encode
@@ -21,10 +21,10 @@ import List.Nonempty exposing (Nonempty(..))
 import Murmur3
 import Process
 import Serialize
-import Set exposing (Set)
+import Set
 import String.Nonempty
 import Task exposing (Task)
-import TranslationParser exposing (Content(..), Translation(..), TranslationDeclaration)
+import TranslationParser exposing (TranslationDeclaration)
 import Types exposing (..)
 import Url exposing (Url)
 import Url.Parser
@@ -46,7 +46,7 @@ app =
     Lamdera.frontend
         { init = init
         , onUrlRequest = PressedLink
-        , onUrlChange = UrlChanged
+        , onUrlChange = \_ -> UrlChanged
         , update = update
         , updateFromBackend = updateFromBackend
         , subscriptions = subscriptions
@@ -183,22 +183,8 @@ update msg model =
                     , Browser.Navigation.load url
                     )
 
-        UrlChanged _ ->
+        UrlChanged ->
             ( model, Cmd.none )
-
-        GotRepository oauthToken result ->
-            case result of
-                Ok files ->
-                    parseFiles
-                        { unparsedFiles = files
-                        , parsedFiles = []
-                        , oauthToken = oauthToken
-                        , loadedChanges = Dict.empty
-                        }
-                        |> Tuple.mapFirst (\newState -> { model | state = newState })
-
-                Err error ->
-                    ( { model | state = LoadFailed error }, Cmd.none )
 
         TypedPersonalAccessToken text ->
             case model.state of

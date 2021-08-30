@@ -4,13 +4,11 @@ module TranslationParser exposing
     , TranslationDeclaration
     , TranslationValue
     , contentToString
-    , expressionNameHelper
     , getLanguageLongName
     , getLanguageShortName
     , getPlaceholders
     , namesToPlaceholders
     , parse
-    , placeholderToNames
     , writeContents
     )
 
@@ -22,7 +20,7 @@ import Elm.Syntax.Expression exposing (Expression(..), RecordSetter)
 import Elm.Syntax.File exposing (File)
 import Elm.Syntax.Infix exposing (InfixDirection(..))
 import Elm.Syntax.Node as Node exposing (Node(..))
-import Elm.Syntax.Pattern exposing (Pattern(..))
+import Elm.Syntax.Pattern exposing (Pattern)
 import Elm.Syntax.Range exposing (Range)
 import Elm.Syntax.Signature exposing (Signature)
 import List.Nonempty exposing (Nonempty(..))
@@ -174,60 +172,6 @@ expressionNameHelper expression =
             Nothing
 
 
-patternName : Pattern -> Maybe String
-patternName pattern =
-    case pattern of
-        AllPattern ->
-            Nothing
-
-        UnitPattern ->
-            Nothing
-
-        CharPattern char ->
-            String.fromChar char |> Just
-
-        StringPattern text ->
-            Just text
-
-        IntPattern int ->
-            String.fromInt int |> Just
-
-        HexPattern int ->
-            String.fromInt int |> Just
-
-        FloatPattern float ->
-            String.fromFloat float |> Just
-
-        TuplePattern _ ->
-            Nothing
-
-        RecordPattern _ ->
-            Nothing
-
-        UnConsPattern _ _ ->
-            Nothing
-
-        ListPattern _ ->
-            Nothing
-
-        VarPattern text ->
-            Just text
-
-        NamedPattern _ nodes ->
-            case nodes of
-                [ Node _ head ] ->
-                    patternName head
-
-                _ ->
-                    Nothing
-
-        AsPattern _ _ ->
-            Nothing
-
-        ParenthesizedPattern (Node _ node) ->
-            patternName node
-
-
 type Translation
     = Translation TranslationValue
     | ParseError { name : String, rowNumber : Int, expression : Expression }
@@ -236,11 +180,6 @@ type Translation
 
 type alias TranslationValue =
     { name : String, parameters : List Pattern, value : Node (Nonempty Content) }
-
-
-errorMessage : Int -> String
-errorMessage rowNumber =
-    "Unsupported translation definition on line: " ++ String.fromInt rowNumber
 
 
 type Content

@@ -3,19 +3,11 @@ module NodeHelper exposing (noRangeExpression, node)
 {-| Helper functions copied from stil4m/elm-syntax
 -}
 
-import Elm.Syntax.Declaration exposing (..)
-import Elm.Syntax.Exposing exposing (..)
 import Elm.Syntax.Expression exposing (..)
-import Elm.Syntax.File exposing (..)
-import Elm.Syntax.Import exposing (Import)
-import Elm.Syntax.Infix exposing (..)
-import Elm.Syntax.Module exposing (..)
-import Elm.Syntax.Node as Node exposing (Node(..))
+import Elm.Syntax.Node exposing (Node(..))
 import Elm.Syntax.Pattern exposing (..)
-import Elm.Syntax.Range exposing (Range, emptyRange)
-import Elm.Syntax.Signature as Signature exposing (Signature)
-import Elm.Syntax.Type exposing (..)
-import Elm.Syntax.TypeAlias exposing (..)
+import Elm.Syntax.Range exposing (emptyRange)
+import Elm.Syntax.Signature exposing (Signature)
 import Elm.Syntax.TypeAnnotation exposing (..)
 
 
@@ -29,64 +21,8 @@ noRangeExpression (Node _ inner) =
     Node emptyRange <| noRangeInnerExpression inner
 
 
-noRangeFile : File -> File
-noRangeFile file =
-    { file
-        | moduleDefinition = unRanged noRangeModule file.moduleDefinition
-        , imports = List.map (unRanged noRangeImport) file.imports
-    }
-
-
-noRangeModule : Module -> Module
-noRangeModule m =
-    case m of
-        NormalModule n ->
-            NormalModule
-                { n
-                    | moduleName = unRange n.moduleName
-                    , exposingList = unRanged noRangeExposingList n.exposingList
-                }
-
-        PortModule n ->
-            PortModule
-                { n
-                    | moduleName = unRange n.moduleName
-                    , exposingList = unRanged noRangeExposingList n.exposingList
-                }
-
-        EffectModule n ->
-            EffectModule
-                { n
-                    | moduleName = unRange n.moduleName
-                    , exposingList = unRanged noRangeExposingList n.exposingList
-                    , command = Maybe.map unRange n.command
-                    , subscription = Maybe.map unRange n.subscription
-                }
-
-
-noRangeImport : Import -> Import
-noRangeImport imp =
-    { imp
-        | exposingList = Maybe.map (unRanged noRangeExposingList) imp.exposingList
-        , moduleName = unRange imp.moduleName
-        , moduleAlias = Maybe.map unRange imp.moduleAlias
-    }
-
-
-noRangeExposingList : Exposing -> Exposing
-noRangeExposingList x =
-    case x of
-        All r ->
-            All emptyRange
-
-        Explicit list ->
-            list
-                |> List.map noRangeExpose
-                |> Explicit
-
-
 noRangePattern : Node Pattern -> Node Pattern
-noRangePattern (Node r p) =
+noRangePattern (Node _ p) =
     Node emptyRange <|
         case p of
             RecordPattern ls ->
@@ -145,56 +81,6 @@ unRanged f (Node _ a) =
     Node emptyRange <| f a
 
 
-noRangeExpose : Node TopLevelExpose -> Node TopLevelExpose
-noRangeExpose (Node _ l) =
-    Node emptyRange <|
-        case l of
-            InfixExpose s ->
-                InfixExpose s
-
-            FunctionExpose s ->
-                FunctionExpose s
-
-            TypeOrAliasExpose s ->
-                TypeOrAliasExpose s
-
-            TypeExpose { name, open } ->
-                TypeExpose (ExposedType name (Maybe.map (always emptyRange) open))
-
-
-noRangeInfix : Infix -> Infix
-noRangeInfix { direction, precedence, operator, function } =
-    Infix
-        (unRange direction)
-        (unRange precedence)
-        (unRange operator)
-        (unRange function)
-
-
-noRangeDeclaration : Declaration -> Declaration
-noRangeDeclaration decl =
-    case decl of
-        Destructuring pattern expression ->
-            Destructuring
-                (noRangePattern pattern)
-                (noRangeExpression expression)
-
-        FunctionDeclaration f ->
-            FunctionDeclaration <| noRangeFunction f
-
-        CustomTypeDeclaration d ->
-            CustomTypeDeclaration <| noRangeTypeDeclaration d
-
-        PortDeclaration d ->
-            PortDeclaration (noRangeSignature d)
-
-        AliasDeclaration aliasDecl ->
-            AliasDeclaration (noRangeTypeAlias aliasDecl)
-
-        InfixDeclaration infixDecl ->
-            InfixDeclaration infixDecl
-
-
 noRangeLetDeclaration : Node LetDeclaration -> Node LetDeclaration
 noRangeLetDeclaration (Node _ decl) =
     Node emptyRange <|
@@ -204,16 +90,6 @@ noRangeLetDeclaration (Node _ decl) =
 
             LetDestructuring pattern expression ->
                 LetDestructuring (noRangePattern pattern) (noRangeExpression expression)
-
-
-noRangeTypeAlias : TypeAlias -> TypeAlias
-noRangeTypeAlias typeAlias =
-    { typeAlias
-        | generics = List.map unRange typeAlias.generics
-        , name = unRange typeAlias.name
-        , documentation = Maybe.map unRange typeAlias.documentation
-        , typeAnnotation = noRangeTypeReference typeAlias.typeAnnotation
-    }
 
 
 noRangeRecordField : RecordField -> RecordField
@@ -252,20 +128,6 @@ noRangeTypeReference (Node _ typeAnnotation) =
                 FunctionTypeAnnotation
                     (noRangeTypeReference a)
                     (noRangeTypeReference b)
-
-
-noRangeTypeDeclaration : Type -> Type
-noRangeTypeDeclaration x =
-    { x
-        | constructors = List.map (unRanged noRangeValueConstructor) x.constructors
-        , generics = List.map unRange x.generics
-        , name = unRange x.name
-    }
-
-
-noRangeValueConstructor : ValueConstructor -> ValueConstructor
-noRangeValueConstructor valueConstructor =
-    { valueConstructor | arguments = List.map noRangeTypeReference valueConstructor.arguments, name = unRange valueConstructor.name }
 
 
 noRangeFunction : Function -> Function

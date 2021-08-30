@@ -33,11 +33,6 @@ update msg model =
                 (AuthenticateResponse (Result.map .accessToken result))
             )
 
-        GotRepositoryBackend result ->
-            ( model
-            , Cmd.none
-            )
-
         LoadedZipBackend clientId result ->
             ( model, Lamdera.sendToFrontend clientId (GetZipResponse result) )
 
