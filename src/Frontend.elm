@@ -6,6 +6,7 @@ import Browser.Dom
 import Browser.Events
 import Browser.Navigation
 import Bytes exposing (Bytes)
+import Cache
 import Editor
 import Element exposing (Element)
 import Element.Font
@@ -142,15 +143,18 @@ initEditor parsingModel =
         translations : List TranslationDeclaration
         translations =
             List.concatMap .result parsingModel.parsedFiles
-    in
-    ( Dict.foldl
-        (\k v s -> updateChanges k v s |> Tuple.first)
-        { submitStatus = NotSubmitted { pressedSubmit = False }
-        , files =
+
+        files : Dict String { original : String }
+        files =
             List.map
                 (\file -> ( file.path, { original = file.original } ))
                 parsingModel.parsedFiles
                 |> Dict.fromList
+    in
+    ( Dict.foldl
+        (\k v s -> updateChanges k v s |> Tuple.first)
+        { submitStatus = NotSubmitted { pressedSubmit = False }
+        , files = files
         , translations = translations
         , groups = groupTranslations translations
         , oauthToken = parsingModel.oauthToken
@@ -164,8 +168,22 @@ initEditor parsingModel =
         }
         parsingModel.loadedChanges
         |> Editor
-    , Cmd.none
+    , local_storage_save_to_js
+        { key = localStorageCacheKey
+        , value =
+            parsingModel.parsedFiles
+                |> List.map
+                    (\parsedFiles ->
+                        Cache.cacheFile { originalCode = parsedFiles.original, translations = parsedFiles.result }
+                    )
+                |> Serialize.encodeToJson (Serialize.list Cache.cachedFileCodec)
+                |> Json.Encode.encode 0
+        }
     )
+
+
+localStorageCacheKey =
+    "cacheKey"
 
 
 update : FrontendMsg -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
@@ -554,7 +572,7 @@ type ChangesVersion
     = ChangesV1 (Dict TranslationId String)
 
 
-changesCodec : Serialize.Codec () (Dict TranslationId String)
+changesCodec : Serialize.Codec Cache.Error (Dict TranslationId String)
 changesCodec =
     Serialize.customType
         (\a value ->
@@ -578,19 +596,13 @@ assocListCodec keyCodec valueCodec =
     Serialize.list (Serialize.tuple keyCodec valueCodec) |> Serialize.map Dict.fromList Dict.toList
 
 
-translationIdCodec : Serialize.Codec () TranslationId
+translationIdCodec : Serialize.Codec Cache.Error TranslationId
 translationIdCodec =
     Serialize.record TranslationId
         |> Serialize.field .filePath Serialize.string
         |> Serialize.field .functionName Serialize.string
-        |> Serialize.field .path (nonemptyCodec Serialize.string)
+        |> Serialize.field .path (Cache.nonemptyCodec Serialize.string)
         |> Serialize.finishRecord
-
-
-nonemptyCodec : Serialize.Codec () a -> Serialize.Codec () (Nonempty a)
-nonemptyCodec codec =
-    Serialize.list codec
-        |> Serialize.mapValid (List.Nonempty.fromList >> Result.fromMaybe ()) List.Nonempty.toList
 
 
 startLoading : Github.OAuthToken -> FrontendModel -> ( FrontendModel, Cmd frontendMsg )
@@ -1070,8 +1082,3 @@ startView model =
 
 errorColor =
     Element.rgb 0.95 0.1 0.1
-
-
-gray : Element.Color
-gray =
-    Element.rgb 0.8 0.8 0.8
