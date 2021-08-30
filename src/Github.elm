@@ -1,26 +1,37 @@
 module Github exposing
-    ( getBranch, listTags, createBranch
-    , getCommit, createCommit
-    , PullRequest, getPullRequests, getPullRequest, createPullRequest
-    , updateFileContents
-    , createFork
-    , getComments, createComment
-    , AccessTokenResponse, ClientId, ClientSecret, CommitSha, Content(..), ContentType(..), DirectoryEntry, OAuthCode, OAuthToken, Owner, Scope(..), ShaHash, TreeSha, authorizationHeader, clientId, clientIdToString, clientSecret, clientSecretToString, createIssue, createTree, getAccessToken, getBranchZip, getCommitZip, getContents, getRepository, getTag, oauthCode, oauthCodeToString, oauthLink, oauthToken, oauthTokenToString, owner, ownerToString, scopeFromString, sha, shaToString, updateBranch
+    ( OAuthToken, oauthToken, oauthTokenToString, AccessTokenResponse, oauthLink, OAuthCode, oauthCode, oauthCodeToString, ClientId, clientId, clientIdToString, ClientSecret, clientSecret, clientSecretToString, getAccessToken, Scope(..), scopeFromString, scopeToString
+    , getRepository, getContents, Owner, owner, ownerToString, updateFileContents
+    , getBranch, updateBranch, listTags, createBranch, getBranchZip, getTag, getCommit, createCommit, getCommitZip, sha, shaToString, ShaHash, CommitSha, TreeSha, Content(..), ContentType(..), DirectoryEntry, createTree
+    , PullRequest, getPullRequests, getPullRequest, createPullRequest, createFork
+    , getComments, createComment, createIssue
     )
 
 {-|
 
-@docs AuthToken, authToken
-@docs getBranch, listTags, createBranch
-@docs getCommit, createCommit
-@docs PullRequest, getPullRequests, getPullRequest, createPullRequest
-@docs getFileContents, updateFileContents
-@docs createFork
+
+## Authorization
+
+@docs OAuthToken, oauthToken, oauthTokenToString, AccessTokenResponse, oauthLink, OAuthCode, oauthCode, oauthCodeToString, ClientId, clientId, clientIdToString, ClientSecret, clientSecret, clientSecretToString, getAccessToken, Scope, scopeFromString, scopeToString
+
+
+## Get repository
+
+@docs getRepository, getContents, Owner, owner, ownerToString, getFileContents, updateFileContents
+
+
+## Work with git
+
+@docs getBranch, updateBranch, listTags, createBranch, getBranchZip, getTag, getCommit, createCommit, getCommitZip, sha, shaToString, ShaHash, CommitSha, TreeSha, Content, ContentType, DirectoryEntry, createTree
+
+
+## Pull request
+
+@docs PullRequest, getPullRequests, getPullRequest, createPullRequest, createFork
 
 
 ## Issues
 
-@docs getComments, createComment
+@docs getComments, createComment, createIssue
 
 -}
 
