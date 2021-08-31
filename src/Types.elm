@@ -4,6 +4,7 @@ import AssocList exposing (Dict)
 import Browser exposing (UrlRequest)
 import Browser.Navigation
 import Bytes exposing (Bytes)
+import Cache exposing (Cache)
 import Github exposing (AccessTokenResponse, OAuthCode, OAuthToken)
 import Http
 import Lamdera exposing (ClientId)
@@ -23,7 +24,7 @@ type alias FrontendModel =
 
 type State
     = Start StartModel
-    | Authenticate
+    | Authenticate (Maybe Cache)
     | Loading LoadingModel
     | Parsing ParsingModel
     | Editor EditorModel
@@ -36,6 +37,7 @@ type alias LoadingModel =
     , filesRemaining : List ( String, Url )
     , directoriesRemaining : Set String
     , fileContents : List ( String, String )
+    , cache : Maybe Cache
     }
 
 
@@ -44,6 +46,7 @@ type alias ParsingModel =
     , parsedFiles : List { path : String, result : List TranslationDeclaration, original : String }
     , oauthToken : OAuthToken
     , loadedChanges : Dict TranslationId String
+    , cache : Maybe Cache
     }
 
 
@@ -91,6 +94,7 @@ type alias StartModel =
     { personalAccessToken : String
     , pressedSubmit : Bool
     , loginFailed : Bool
+    , cache : Maybe Cache
     }
 
 

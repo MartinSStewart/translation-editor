@@ -3,6 +3,7 @@ module TranslationParser exposing
     , Translation(..)
     , TranslationDeclaration
     , TranslationValue
+    , contentCodec
     , contentToString
     , getLanguageLongName
     , getLanguageShortName
@@ -13,6 +14,7 @@ module TranslationParser exposing
     )
 
 import AssocList as Dict exposing (Dict)
+import AstCodec exposing (DecodeError)
 import Elm.Parser
 import Elm.Processing
 import Elm.Syntax.Declaration exposing (Declaration(..))
@@ -22,20 +24,17 @@ import Elm.Syntax.Infix exposing (InfixDirection(..))
 import Elm.Syntax.Node as Node exposing (Node(..))
 import Elm.Syntax.Pattern exposing (Pattern)
 import Elm.Syntax.Range exposing (Range)
-import Elm.Syntax.Signature exposing (Signature)
 import List.Nonempty exposing (Nonempty(..))
 import Maybe.Extra
 import NodeHelper
 import Parser exposing (DeadEnd)
+import Serialize
 import Set
 
 
 type alias TranslationDeclaration =
     { filePath : String
-    , documentation : Maybe (Node String)
-    , signature : Maybe (Node Signature)
     , functionName : String
-    , parameters : List Pattern
     , language : String
     , translations : Dict (Nonempty String) (Result () { value : Nonempty Content, range : Range })
     }
@@ -187,51 +186,20 @@ type Content
     | Placeholder Expression
 
 
+contentCodec : Serialize.Codec DecodeError Content
+contentCodec =
+    Serialize.customType
+        (\a b value ->
+            case value of
+                TextContent data0 ->
+                    a data0
 
---codeGen : TranslationDeclaration -> String
---codeGen translationDeclaration =
---    { documentation = translationDeclaration.documentation
---    , signature = translationDeclaration.signature
---    , declaration =
---        NodeHelper.node
---            { name = NodeHelper.node translationDeclaration.functionName
---            , arguments = List.map NodeHelper.node translationDeclaration.parameters
---            , expression =
---                List.Nonempty.toList translationDeclaration.translations
---                    |> List.map writeTranslation
---                    |> RecordExpr
---                    |> NodeHelper.node
---            }
---    }
---        |> Elm.Pretty.prettyFun
---        |> Pretty.pretty 100
---
---writeTranslation : Translation -> Node RecordSetter
---writeTranslation translation =
---    case translation of
---        Translation { name, parameters, value } ->
---            NodeHelper.node
---                ( NodeHelper.node name
---                , if List.isEmpty parameters then
---                    writeContents value
---
---                  else
---                    LambdaExpression
---                        { args = List.map NodeHelper.node parameters
---                        , expression = writeContents value
---                        }
---                        |> NodeHelper.node
---                )
---
---        Group { name, translations } ->
---            List.map writeTranslation translations
---                |> RecordExpr
---                |> NodeHelper.node
---                |> Tuple.pair (NodeHelper.node name)
---                |> NodeHelper.node
---
---        ParseError { name, expression } ->
---            NodeHelper.node ( NodeHelper.node name, NodeHelper.node expression )
+                Placeholder data0 ->
+                    b data0
+        )
+        |> Serialize.variant1 TextContent Serialize.string
+        |> Serialize.variant1 Placeholder AstCodec.expression
+        |> Serialize.finishCustomType
 
 
 writeContents : Nonempty Content -> Expression
@@ -495,10 +463,7 @@ parse modulePath moduleCode =
                                             Just translations ->
                                                 if isTranslationRecord translations then
                                                     { filePath = modulePath
-                                                    , documentation = function.documentation
-                                                    , signature = function.signature
                                                     , functionName = Node.value functionDeclaration.name
-                                                    , parameters = List.map Node.value functionDeclaration.arguments
                                                     , language = language
                                                     , translations = translationToDict [] (List.Nonempty.toList translations)
                                                     }
