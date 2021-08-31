@@ -1,18 +1,16 @@
 module Types exposing (..)
 
-import AssocList as Dict exposing (Dict)
+import AssocList exposing (Dict)
 import Browser exposing (UrlRequest)
 import Browser.Navigation
 import Bytes exposing (Bytes)
-import Cache exposing (Cache, CachedFile)
-import Elm.Syntax.Range exposing (Range)
+import Cache exposing (Cache)
 import Github exposing (AccessTokenResponse, OAuthCode, OAuthToken)
 import Http
 import Lamdera exposing (ClientId)
 import List.Nonempty exposing (Nonempty)
-import Serialize
 import Set exposing (Set)
-import TranslationParser exposing (Content, TranslationDeclaration)
+import TranslationParser exposing (TranslationDeclaration)
 import Url exposing (Url)
 
 

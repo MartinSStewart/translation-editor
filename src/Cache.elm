@@ -1,4 +1,4 @@
-module Cache exposing (Cache, CachedFile, CachedTranslation, Error(..), cacheFiles, cachedFileCodec, cachedTranslationCodec, codec, hashKey, loadTranslation, nonemptyCodec)
+module Cache exposing (Cache, CachedTranslation, Error(..), cacheFiles, codec, hashKey, loadTranslation, nonemptyCodec)
 
 import AssocList as Dict exposing (Dict)
 import AstCodec
@@ -71,20 +71,6 @@ loadTranslation { filePath, cachedTranslation } =
 
 type alias FileHash =
     Int
-
-
-type alias CachedFile =
-    { fileHash : FileHash
-    , translations : List CachedTranslation
-    }
-
-
-cachedFileCodec : Serialize.Codec Error CachedFile
-cachedFileCodec =
-    Serialize.record CachedFile
-        |> Serialize.field .fileHash Serialize.int
-        |> Serialize.field .translations (Serialize.list cachedTranslationCodec)
-        |> Serialize.finishRecord
 
 
 cachedTranslationCodec : Serialize.Codec Error CachedTranslation
