@@ -6,7 +6,8 @@ import Browser.Dom
 import Browser.Events
 import Browser.Navigation
 import Bytes exposing (Bytes)
-import Cache
+import Cache exposing (Cache)
+import Dict as RegularDict
 import Editor
 import Element exposing (Element)
 import Element.Font
@@ -79,7 +80,7 @@ init url key =
         ( state, cmd ) =
             case Url.Parser.parse parseRoute url of
                 Just (Just token) ->
-                    ( Authenticate
+                    ( Authenticate Nothing
                     , Cmd.batch
                         [ Browser.Navigation.replaceUrl key Env.domain
                         , Lamdera.sendToBackend (AuthenticateRequest token)
@@ -87,12 +88,22 @@ init url key =
                     )
 
                 Just Nothing ->
-                    ( Start { personalAccessToken = "", pressedSubmit = False, loginFailed = False }
+                    ( Start
+                        { personalAccessToken = ""
+                        , pressedSubmit = False
+                        , loginFailed = False
+                        , cache = Nothing
+                        }
                     , local_storage_request_load_to_js { key = authTokenLocalStorageKey }
                     )
 
                 Nothing ->
-                    ( Start { personalAccessToken = "", pressedSubmit = False, loginFailed = False }
+                    ( Start
+                        { personalAccessToken = ""
+                        , pressedSubmit = False
+                        , loginFailed = False
+                        , cache = Nothing
+                        }
                     , local_storage_request_load_to_js { key = authTokenLocalStorageKey }
                     )
     in
@@ -105,6 +116,7 @@ init url key =
         [ Browser.Dom.getViewport
             |> Task.perform (\{ viewport } -> GotWindowSize (round viewport.width) (round viewport.height))
         , cmd
+        , local_storage_request_load_to_js { key = localStorageCacheKey }
         ]
     )
 
@@ -117,12 +129,31 @@ parseFiles parsingModel =
             , Process.sleep 0
                 |> Task.andThen
                     (\() ->
-                        case TranslationParser.parse path head of
-                            Ok translations ->
-                                Task.succeed translations
+                        let
+                            hash : Int
+                            hash =
+                                Murmur3.hashString Cache.hashKey head
 
-                            Err _ ->
-                                Task.fail ()
+                            cachedTranslations : Maybe (List Cache.CachedTranslation)
+                            cachedTranslations =
+                                Maybe.andThen (RegularDict.get hash) parsingModel.cache
+                        in
+                        case cachedTranslations of
+                            Just translations ->
+                                List.filterMap
+                                    (\translation ->
+                                        Cache.loadTranslation { filePath = path, cachedTranslation = translation }
+                                    )
+                                    translations
+                                    |> Task.succeed
+
+                            Nothing ->
+                                case TranslationParser.parse path head of
+                                    Ok translations ->
+                                        Task.succeed translations
+
+                                    Err _ ->
+                                        Task.fail ()
                     )
                 |> Task.attempt (\result -> ParsedFile { path = path, result = result, original = head })
             )
@@ -174,14 +205,16 @@ initEditor parsingModel =
             parsingModel.parsedFiles
                 |> List.map
                     (\parsedFiles ->
-                        Cache.cacheFile { originalCode = parsedFiles.original, translations = parsedFiles.result }
+                        { originalCode = parsedFiles.original, translations = parsedFiles.result }
                     )
-                |> Serialize.encodeToJson (Serialize.list Cache.cachedFileCodec)
+                |> Cache.cacheFiles
+                |> Serialize.encodeToJson Cache.codec
                 |> Json.Encode.encode 0
         }
     )
 
 
+localStorageCacheKey : String
 localStorageCacheKey =
     "cacheKey"
 
@@ -230,6 +263,7 @@ update msg model =
                                         , directoriesRemaining = Set.empty
                                         , oauthToken = authToken
                                         , fileContents = []
+                                        , cache = Nothing
                                         }
                               }
                             , Cmd.batch
@@ -248,11 +282,53 @@ update msg model =
         GotLocalStorageData (Ok { key, value }) ->
             if key == authTokenLocalStorageKey then
                 case ( model.state, value ) of
-                    ( Start _, Just oauthToken ) ->
-                        startLoading (Github.oauthToken oauthToken) model
+                    ( Start startModel, Just oauthToken ) ->
+                        startLoading (Github.oauthToken oauthToken) startModel.cache model
 
                     _ ->
                         ( model, Cmd.none )
+
+            else if key == localStorageCacheKey then
+                ( case value of
+                    Just text ->
+                        case
+                            Json.Decode.decodeString Json.Decode.value text
+                                |> Result.withDefault (Json.Encode.object [])
+                                |> Serialize.decodeFromJson Cache.codec
+                        of
+                            Ok cache ->
+                                { model
+                                    | state =
+                                        case model.state of
+                                            Start startModel ->
+                                                Start { startModel | cache = Just cache }
+
+                                            Authenticate _ ->
+                                                Authenticate (Just cache)
+
+                                            Loading loadingModel ->
+                                                Loading { loadingModel | cache = Just cache }
+
+                                            Parsing parsingModel ->
+                                                Parsing { parsingModel | cache = Just cache }
+
+                                            Editor _ ->
+                                                model.state
+
+                                            ParsingFailed _ ->
+                                                model.state
+
+                                            LoadFailed _ ->
+                                                model.state
+                                }
+
+                            Err _ ->
+                                model
+
+                    Nothing ->
+                        model
+                , Cmd.none
+                )
 
             else if key == changesLocalStorageKey then
                 case ( model.state, value ) of
@@ -605,8 +681,8 @@ translationIdCodec =
         |> Serialize.finishRecord
 
 
-startLoading : Github.OAuthToken -> FrontendModel -> ( FrontendModel, Cmd frontendMsg )
-startLoading oauthToken model =
+startLoading : Github.OAuthToken -> Maybe Cache -> FrontendModel -> ( FrontendModel, Cmd frontendMsg )
+startLoading oauthToken maybeCache model =
     ( { model
         | state =
             Loading
@@ -614,6 +690,7 @@ startLoading oauthToken model =
                 , directoriesRemaining = Set.empty
                 , oauthToken = oauthToken
                 , fileContents = []
+                , cache = maybeCache
                 }
       }
     , Lamdera.sendToBackend (GetZipRequest oauthToken)
@@ -789,14 +866,20 @@ updateFromBackend msg model =
     case msg of
         AuthenticateResponse result ->
             case model.state of
-                Authenticate ->
+                Authenticate maybeCache ->
                     case result of
                         Ok oauthToken ->
-                            startLoading oauthToken model
+                            startLoading oauthToken maybeCache model
 
                         Err _ ->
                             ( { model
-                                | state = Start { personalAccessToken = "", pressedSubmit = False, loginFailed = True }
+                                | state =
+                                    Start
+                                        { personalAccessToken = ""
+                                        , pressedSubmit = False
+                                        , loginFailed = True
+                                        , cache = maybeCache
+                                        }
                               }
                             , Cmd.none
                             )
@@ -850,6 +933,7 @@ handleZipLoaded result loadingModel =
                         , parsedFiles = []
                         , oauthToken = loadingModel.oauthToken
                         , loadedChanges = Dict.empty
+                        , cache = loadingModel.cache
                         }
                         |> Tuple.mapSecond
                             (\cmd ->
@@ -953,7 +1037,7 @@ view model =
                             , Element.padding 16
                             ]
 
-                Authenticate ->
+                Authenticate _ ->
                     Element.text "Authenticating..."
                         |> Element.el [ Element.padding 16 ]
             )

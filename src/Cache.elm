@@ -1,7 +1,8 @@
-module Cache exposing (CachedFile, CachedTranslation, Error(..), cacheFile, cachedFileCodec, nonemptyCodec)
+module Cache exposing (Cache, CachedFile, CachedTranslation, Error(..), cacheFiles, cachedFileCodec, cachedTranslationCodec, codec, hashKey, loadTranslation, nonemptyCodec)
 
 import AssocList as Dict exposing (Dict)
 import AstCodec
+import Dict as RegularDict
 import Elm.Syntax.Range exposing (Range)
 import List.Nonempty exposing (Nonempty)
 import Murmur3
@@ -20,11 +21,30 @@ type alias CachedTranslation =
     }
 
 
-cacheFile : { originalCode : String, translations : List TranslationDeclaration } -> CachedFile
-cacheFile { originalCode, translations } =
-    { fileHash = Murmur3.hashString 123 originalCode |> FileHash
-    , translations = List.map cacheTranslation translations
-    }
+cacheFiles : List { originalCode : String, translations : List TranslationDeclaration } -> Cache
+cacheFiles files =
+    List.map
+        (\{ originalCode, translations } ->
+            ( Murmur3.hashString hashKey originalCode, List.map cacheTranslation translations )
+        )
+        files
+        |> List.sortBy Tuple.first
+        -- We only cache up to 1000 files so that the cache doesn't grow without bound
+        |> List.take 1000
+        |> RegularDict.fromList
+
+
+hashKey =
+    123
+
+
+type alias Cache =
+    RegularDict.Dict Int (List CachedTranslation)
+
+
+codec : Serialize.Codec Error Cache
+codec =
+    Serialize.dict Serialize.int (Serialize.list cachedTranslationCodec)
 
 
 cacheTranslation : TranslationDeclaration -> CachedTranslation
@@ -49,8 +69,8 @@ loadTranslation { filePath, cachedTranslation } =
             Nothing
 
 
-type FileHash
-    = FileHash Int
+type alias FileHash =
+    Int
 
 
 type alias CachedFile =
@@ -62,7 +82,7 @@ type alias CachedFile =
 cachedFileCodec : Serialize.Codec Error CachedFile
 cachedFileCodec =
     Serialize.record CachedFile
-        |> Serialize.field .fileHash fileHashCodec
+        |> Serialize.field .fileHash Serialize.int
         |> Serialize.field .translations (Serialize.list cachedTranslationCodec)
         |> Serialize.finishRecord
 
@@ -104,19 +124,7 @@ dict keyCodec valueCodec =
         |> Serialize.map Dict.fromList Dict.toList
 
 
-fileHashCodec : Serialize.Codec e FileHash
-fileHashCodec =
-    Serialize.customType
-        (\a value ->
-            case value of
-                FileHash data0 ->
-                    a data0
-        )
-        |> Serialize.variant1 FileHash Serialize.int
-        |> Serialize.finishCustomType
-
-
 nonemptyCodec : Serialize.Codec Error a -> Serialize.Codec Error (Nonempty a)
-nonemptyCodec codec =
-    Serialize.list codec
+nonemptyCodec codec_ =
+    Serialize.list codec_
         |> Serialize.mapValid (List.Nonempty.fromList >> Result.fromMaybe NonemptyListCannotBeEmpty) List.Nonempty.toList
