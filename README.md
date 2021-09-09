@@ -1,6 +1,6 @@
 # Translation Editor
 
-This is a webapp [hosted here](https://translation-editor.lamdera.app) that loads the insurello/app code, parses out all the translations, displays them as a list that you can edit, and creates a pull request for any changes you made.
+This is a webapp [hosted here](https://translations-editor.lamdera.app) that loads the insurello/app code, parses out all the translations, displays them as a list that you can edit, and creates a pull request for any changes you made.
 
 ## Getting started
 
