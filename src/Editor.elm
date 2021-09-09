@@ -269,9 +269,9 @@ noTranslationsView =
         ]
 
 
-isEnglish : { a | functionName : String } -> Bool
-isEnglish id =
-    TranslationParser.getLanguageShortName id.functionName == Just "en"
+isEnglish : String -> Bool
+isEnglish functionName =
+    TranslationParser.getLanguageShortName functionName == Just "en"
 
 
 hasUnfinishedTranslations : TranslationGroup -> EditorModel -> Bool
@@ -279,15 +279,15 @@ hasUnfinishedTranslations group editorModel =
     let
         englishTranslation : Maybe (Nonempty Content)
         englishTranslation =
-            List.Nonempty.toList group.ids
+            List.Nonempty.toList group.functionNames
                 |> List.find isEnglish
                 |> Maybe.andThen
-                    (\id ->
+                    (\functionName ->
                         case
                             getTranslation
                                 { path = group.path
-                                , functionName = id.functionName
-                                , filePath = id.filePath
+                                , functionName = functionName
+                                , filePath = group.filePath
                                 }
                                 editorModel.translations
                         of
@@ -298,10 +298,10 @@ hasUnfinishedTranslations group editorModel =
                                 Nothing
                     )
     in
-    List.Nonempty.toList group.ids
+    List.Nonempty.toList group.functionNames
         |> List.filter
-            (\id ->
-                case TranslationParser.getLanguageShortName id.functionName of
+            (\functionName ->
+                case TranslationParser.getLanguageShortName functionName of
                     Just language ->
                         if Set.member language editorModel.hiddenLanguages then
                             False
@@ -310,27 +310,21 @@ hasUnfinishedTranslations group editorModel =
                             case
                                 getTranslation
                                     { path = group.path
-                                    , functionName = id.functionName
-                                    , filePath = id.filePath
+                                    , functionName = functionName
+                                    , filePath = group.filePath
                                     }
                                     editorModel.translations
                             of
                                 Just (Ok ( _, { value } )) ->
-                                    case value of
-                                        Nonempty (TextContent "") [] ->
-                                            True
+                                    let
+                                        text =
+                                            TranslationParser.contentToString value
+                                    in
+                                    if text == "" || String.contains "🚧" text || String.contains "👷" text then
+                                        True
 
-                                        Nonempty (TextContent "🚧") [] ->
-                                            True
-
-                                        Nonempty (TextContent "👷") [] ->
-                                            True
-
-                                        Nonempty (Placeholder _) [] ->
-                                            True
-
-                                        _ ->
-                                            not (isEnglish id) && Just value == englishTranslation
+                                    else
+                                        not (isEnglish functionName) && Just value == englishTranslation
 
                                 _ ->
                                     False
@@ -532,13 +526,13 @@ translationView :
 translationView hiddenLanguages translationData changes translationGroup =
     let
         hasNoChanges =
-            List.Nonempty.toList translationGroup.ids
+            List.Nonempty.toList translationGroup.functionNames
                 |> List.filterMap
-                    (\id ->
+                    (\functionName ->
                         Dict.get
                             { path = translationGroup.path
-                            , functionName = id.functionName
-                            , filePath = id.filePath
+                            , functionName = functionName
+                            , filePath = translationGroup.filePath
                             }
                             changes
                     )
@@ -552,7 +546,14 @@ translationView hiddenLanguages translationData changes translationGroup =
         ]
         [ Element.row
             [ Element.width Element.fill, Element.height (Element.px 30) ]
-            [ Element.text (List.Nonempty.toList translationGroup.path |> String.join ".")
+            [ Element.row
+                [ Element.spacing 16 ]
+                [ Element.text (List.Nonempty.toList translationGroup.path |> String.join ".")
+                , Element.el
+                    [ Element.Font.color (Element.rgb 0.4 0.4 0.4)
+                    ]
+                    (Element.text translationGroup.filePath)
+                ]
             , if hasNoChanges then
                 Element.none
 
@@ -565,10 +566,10 @@ translationView hiddenLanguages translationData changes translationGroup =
             ]
         , Element.column
             [ Element.spacing 8, Element.width Element.fill ]
-            (List.Nonempty.toList translationGroup.ids
+            (List.Nonempty.toList translationGroup.functionNames
                 |> List.map
-                    (\id ->
-                        case TranslationParser.getLanguageShortName id.functionName of
+                    (\functionName ->
+                        case TranslationParser.getLanguageShortName functionName of
                             Just language ->
                                 if Set.member language hiddenLanguages then
                                     Element.none
@@ -577,8 +578,8 @@ translationView hiddenLanguages translationData changes translationGroup =
                                     case
                                         Dict.get
                                             { path = translationGroup.path
-                                            , functionName = id.functionName
-                                            , filePath = id.filePath
+                                            , functionName = functionName
+                                            , filePath = translationGroup.filePath
                                             }
                                             changes
                                     of
@@ -588,8 +589,8 @@ translationView hiddenLanguages translationData changes translationGroup =
                                                 translationData
                                                 change
                                                 translationGroup.path
-                                                id.functionName
-                                                id.filePath
+                                                functionName
+                                                translationGroup.filePath
 
                                         Nothing ->
                                             Element.Lazy.lazy5
@@ -597,8 +598,8 @@ translationView hiddenLanguages translationData changes translationGroup =
                                                 translationData
                                                 Nothing
                                                 translationGroup.path
-                                                id.functionName
-                                                id.filePath
+                                                functionName
+                                                translationGroup.filePath
 
                             Nothing ->
                                 Element.none

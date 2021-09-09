@@ -1048,7 +1048,7 @@ view model =
 groupTranslations : List TranslationDeclaration -> List TranslationGroup
 groupTranslations translations_ =
     let
-        translations : List ( Nonempty String, { filePath : String, functionName : String } )
+        translations : List { path : Nonempty String, filePath : String, functionName : String }
         translations =
             List.concatMap
                 (\translationDeclaration ->
@@ -1057,11 +1057,10 @@ groupTranslations translations_ =
                             (\( key, a ) ->
                                 case a of
                                     Ok _ ->
-                                        ( key
-                                        , { filePath = translationDeclaration.filePath
-                                          , functionName = translationDeclaration.functionName
-                                          }
-                                        )
+                                        { path = key
+                                        , filePath = translationDeclaration.filePath
+                                        , functionName = translationDeclaration.functionName
+                                        }
                                             |> Just
 
                                     Err _ ->
@@ -1072,17 +1071,18 @@ groupTranslations translations_ =
 
         groupByPath :
             List
-                ( ( Nonempty String, { filePath : String, functionName : String } )
-                , List ( Nonempty String, { filePath : String, functionName : String } )
+                ( { path : Nonempty String, filePath : String, functionName : String }
+                , List { path : Nonempty String, filePath : String, functionName : String }
                 )
         groupByPath =
-            List.gatherEqualsBy (Tuple.first >> List.Nonempty.toList) translations
+            List.gatherEqualsBy (\a -> ( List.Nonempty.toList a.path, a.filePath )) translations
     in
     groupByPath
         |> List.map
             (\( first, rest ) ->
-                { path = Tuple.first first
-                , ids = List.Nonempty.map Tuple.second (Nonempty first rest)
+                { path = first.path
+                , filePath = first.filePath
+                , functionNames = List.Nonempty.map .functionName (Nonempty first rest)
                 }
             )
 

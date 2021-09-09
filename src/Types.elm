@@ -52,7 +52,8 @@ type alias ParsingModel =
 
 type alias TranslationGroup =
     { path : Nonempty String
-    , ids : Nonempty { filePath : String, functionName : String }
+    , filePath : String
+    , functionNames : Nonempty String
     }
 
 
