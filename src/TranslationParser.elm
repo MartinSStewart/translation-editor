@@ -346,33 +346,41 @@ parseRecordField =
                 |> ParseError
 
         else
-            case value of
-                LambdaExpression { args, expression } ->
-                    { name = name
-                    , parameters = List.map Node.value args
-                    , value = parseTranslationValue expression |> Node (Node.range expression)
-                    }
-                        |> Translation
+            parseRecordFieldHelper range name value
 
-                Literal text ->
-                    { name = name
-                    , parameters = []
-                    , value = List.Nonempty.fromElement (TextContent text) |> Node range
-                    }
-                        |> Translation
 
-                RecordExpr record ->
-                    { name = name
-                    , translations = List.map parseRecordField record
-                    }
-                        |> Group
+parseRecordFieldHelper : Range -> String -> Expression -> Translation
+parseRecordFieldHelper range name value =
+    case value of
+        LetExpression { expression } ->
+            parseRecordFieldHelper (Node.range expression) name (Node.value expression)
 
-                _ ->
-                    { name = name
-                    , rowNumber = range.start.row
-                    , expression = value
-                    }
-                        |> ParseError
+        LambdaExpression { args, expression } ->
+            { name = name
+            , parameters = List.map Node.value args
+            , value = parseTranslationValue expression |> Node (Node.range expression)
+            }
+                |> Translation
+
+        Literal text ->
+            { name = name
+            , parameters = []
+            , value = List.Nonempty.fromElement (TextContent text) |> Node range
+            }
+                |> Translation
+
+        RecordExpr record ->
+            { name = name
+            , translations = List.map parseRecordField record
+            }
+                |> Group
+
+        _ ->
+            { name = name
+            , rowNumber = range.start.row
+            , expression = value
+            }
+                |> ParseError
 
 
 isTranslationRecord : Nonempty Translation -> Bool

@@ -90,6 +90,7 @@ tests =
                                 , changeCounter = 0
                                 , allLanguages = Set.fromList [ "en", "sv" ]
                                 , groups = []
+                                , name = ""
                                 }
                         in
                         Editor.applyChanges editorModel
@@ -127,6 +128,7 @@ tests =
                                 , showOnlyMissingTranslations = False
                                 , allLanguages = Set.fromList [ "en", "sv" ]
                                 , groups = []
+                                , name = ""
                                 }
                         in
                         Editor.applyChanges editorModel |> Expect.equal expected
