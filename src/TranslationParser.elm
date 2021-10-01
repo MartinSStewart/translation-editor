@@ -451,6 +451,36 @@ parse modulePath moduleCode =
                 file : File
                 file =
                     Elm.Processing.process Elm.Processing.init rawFile
+
+                helper :
+                    Elm.Syntax.Expression.FunctionImplementation
+                    -> Node Expression
+                    -> String
+                    -> Maybe TranslationDeclaration
+                helper functionDeclaration (Node _ expression) language =
+                    case expression of
+                        RecordExpr record ->
+                            case List.map parseRecordField record |> List.Nonempty.fromList of
+                                Just translations ->
+                                    if isTranslationRecord translations then
+                                        { filePath = modulePath
+                                        , functionName = Node.value functionDeclaration.name
+                                        , language = language
+                                        , translations = translationToDict [] (List.Nonempty.toList translations)
+                                        }
+                                            |> Just
+
+                                    else
+                                        Nothing
+
+                                Nothing ->
+                                    Nothing
+
+                        LetExpression letBlock ->
+                            helper functionDeclaration letBlock.expression language
+
+                        _ ->
+                            Nothing
             in
             file.declarations
                 |> List.filterMap
@@ -458,32 +488,15 @@ parse modulePath moduleCode =
                         case declaration of
                             FunctionDeclaration function ->
                                 let
+                                    functionDeclaration : Elm.Syntax.Expression.FunctionImplementation
                                     functionDeclaration =
                                         Node.value function.declaration
                                 in
-                                case
-                                    ( getLanguageShortName (Node.value functionDeclaration.name)
-                                    , Node.value functionDeclaration.expression
-                                    )
-                                of
-                                    ( Just language, RecordExpr record ) ->
-                                        case List.map parseRecordField record |> List.Nonempty.fromList of
-                                            Just translations ->
-                                                if isTranslationRecord translations then
-                                                    { filePath = modulePath
-                                                    , functionName = Node.value functionDeclaration.name
-                                                    , language = language
-                                                    , translations = translationToDict [] (List.Nonempty.toList translations)
-                                                    }
-                                                        |> Just
+                                case getLanguageShortName (Node.value functionDeclaration.name) of
+                                    Just language ->
+                                        helper functionDeclaration functionDeclaration.expression language
 
-                                                else
-                                                    Nothing
-
-                                            Nothing ->
-                                                Nothing
-
-                                    _ ->
+                                    Nothing ->
                                         Nothing
 
                             _ ->
