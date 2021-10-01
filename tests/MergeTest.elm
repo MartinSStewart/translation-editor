@@ -145,7 +145,6 @@ tests =
                                     translation.functionName == "swedishTexts"
                                 )
                                 translations
-                                |> Debug.log "data"
                                 |> Maybe.map
                                     (\swedishTranslation ->
                                         Dict.get
@@ -158,8 +157,8 @@ tests =
                                             (Ok
                                                 { value = Nonempty (TextContent "🚧") []
                                                 , range =
-                                                    { start = { column = 0, row = 0 }
-                                                    , end = { column = 0, row = 0 }
+                                                    { start = { column = 33, row = 72 }
+                                                    , end = { column = 36, row = 72 }
                                                     }
                                                 }
                                             )
