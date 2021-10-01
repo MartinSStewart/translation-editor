@@ -42,8 +42,31 @@ type alias Cache =
     RegularDict.Dict Int (List CachedTranslation)
 
 
+type CacheVersion
+    = CacheVersion1 Cache
+
+
 codec : Serialize.Codec Error Cache
 codec =
+    Serialize.customType
+        (\a value ->
+            case value of
+                CacheVersion1 data0 ->
+                    a data0
+        )
+        |> Serialize.variant1 CacheVersion1 cacheCodec
+        |> Serialize.finishCustomType
+        |> Serialize.map
+            (\cacheVersion ->
+                case cacheVersion of
+                    CacheVersion1 cache ->
+                        cache
+            )
+            CacheVersion1
+
+
+cacheCodec : Serialize.Codec Error Cache
+cacheCodec =
     Serialize.dict Serialize.int (Serialize.list cachedTranslationCodec)
 
 
