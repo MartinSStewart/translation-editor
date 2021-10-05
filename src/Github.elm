@@ -4,6 +4,7 @@ module Github exposing
     , getBranch, updateBranch, listTags, createBranch, getBranchZip, getTag, getCommit, createCommit, getCommitZip, sha, shaToString, ShaHash, CommitSha, TreeSha, Content(..), ContentType(..), DirectoryEntry, createTree
     , PullRequest, getPullRequests, getPullRequest, createPullRequest, createFork
     , getComments, createComment, createIssue
+    , Branch, branch, branchToString, getBranches
     )
 
 {-|
@@ -62,12 +63,12 @@ getRepository :
     , owner : Owner
     , repo : String
     }
-    -> Task Http.Error { defaultBranch : String }
+    -> Task Http.Error { defaultBranch : Branch }
 getRepository params =
     let
         decoder =
             Json.Decode.map (\defaultBranch -> { defaultBranch = defaultBranch })
-                (Json.Decode.field "default_branch" Json.Decode.string)
+                (Json.Decode.field "default_branch" decodeBranch)
     in
     Http.task
         { method = "GET"
@@ -79,11 +80,37 @@ getRepository params =
         }
 
 
+getBranches :
+    { authToken : OAuthToken
+    , owner : Owner
+    , repo : String
+    }
+    -> Task Http.Error (List { name : String, sha : ShaHash CommitSha })
+getBranches params =
+    let
+        decoder =
+            Json.Decode.map2 (\name sha_ -> { name = name, sha = sha_ })
+                (Json.Decode.field "name" Json.Decode.string)
+                (Json.Decode.at [ "commit", "sha" ] decodeSha)
+    in
+    Http.task
+        { method = "GET"
+        , headers = [ authorizationHeader params.authToken ]
+        , url =
+            Url.Builder.crossOrigin githubApiDomain
+                [ "repos", ownerToString params.owner, params.repo, "branches" ]
+                []
+        , body = Http.emptyBody
+        , resolver = jsonResolver (Json.Decode.list decoder)
+        , timeout = Nothing
+        }
+
+
 getBranchZip :
     { authToken : Maybe OAuthToken
     , owner : Owner
     , repo : String
-    , branchName : Maybe String
+    , branchName : Maybe Branch
     }
     -> Task Http.Error Bytes
 getBranchZip params =
@@ -104,7 +131,7 @@ getBranchZip params =
                     :: "zipball"
                     :: (case params.branchName of
                             Just branchName ->
-                                [ branchName ]
+                                [ branchToString branchName ]
 
                             Nothing ->
                                 []
@@ -202,7 +229,7 @@ getBranch :
     { authToken : OAuthToken
     , owner : Owner
     , repo : String
-    , branchName : String
+    , branchName : Branch
     }
     -> Task Http.Error (ShaHash CommitSha)
 getBranch params =
@@ -213,7 +240,7 @@ getBranch params =
     Http.task
         { method = "GET"
         , headers = [ authorizationHeader params.authToken ]
-        , url = "https://api.github.com/repos/" ++ ownerToString params.owner ++ "/" ++ params.repo ++ "/git/refs/heads/" ++ params.branchName
+        , url = "https://api.github.com/repos/" ++ ownerToString params.owner ++ "/" ++ params.repo ++ "/git/refs/heads/" ++ branchToString params.branchName
         , body = Http.emptyBody
         , resolver = jsonResolver decoder
         , timeout = Nothing
@@ -229,7 +256,7 @@ updateBranch :
     { authToken : OAuthToken
     , owner : Owner
     , repo : String
-    , branchName : String
+    , branchName : Branch
     , sha : ShaHash CommitSha
     , force : Bool
     }
@@ -238,7 +265,7 @@ updateBranch params =
     Http.task
         { method = "PATCH"
         , headers = [ authorizationHeader params.authToken ]
-        , url = "https://api.github.com/repos/" ++ ownerToString params.owner ++ "/" ++ params.repo ++ "/git/refs/heads/" ++ params.branchName
+        , url = "https://api.github.com/repos/" ++ ownerToString params.owner ++ "/" ++ params.repo ++ "/git/refs/heads/" ++ branchToString params.branchName
         , body =
             Http.jsonBody
                 (Json.Encode.object
@@ -450,7 +477,7 @@ createBranch :
     { authToken : OAuthToken
     , owner : Owner
     , repo : String
-    , branchName : String
+    , branchName : Branch
     , sha : ShaHash CommitSha
     }
     -> Task Http.Error ()
@@ -470,7 +497,7 @@ createBranch params =
         , body =
             Http.jsonBody
                 (Json.Encode.object
-                    [ ( "ref", Json.Encode.string ("refs/heads/" ++ params.branchName) )
+                    [ ( "ref", Json.Encode.string ("refs/heads/" ++ branchToString params.branchName) )
                     , ( "sha", encodeSha params.sha )
                     ]
                 )
@@ -528,11 +555,7 @@ getPullRequest :
     ->
         Task
             Http.Error
-            { head :
-                { ref : String
-                , sha : ShaHash CommitSha
-                }
-            }
+            { head : { ref : String, sha : ShaHash CommitSha } }
 getPullRequest params =
     let
         decoder =
@@ -566,9 +589,9 @@ createPullRequest :
     { authToken : OAuthToken
     , destinationOwner : Owner
     , destinationRepo : String
-    , destinationBranch : String
+    , destinationBranch : Branch
     , sourceBranchOwner : Owner
-    , sourceBranch : String
+    , sourceBranch : Branch
     , title : String
     , description : String
     }
@@ -588,15 +611,16 @@ createPullRequest params =
             Http.jsonBody
                 (Json.Encode.object
                     [ ( "title", Json.Encode.string params.title )
-                    , ( "base", Json.Encode.string params.destinationBranch )
+                    , ( "base", encodeBranch params.destinationBranch )
                     , ( "head"
-                      , Json.Encode.string
-                            (if params.destinationOwner == params.sourceBranchOwner then
-                                params.sourceBranch
+                      , if params.destinationOwner == params.sourceBranchOwner then
+                            encodeBranch params.sourceBranch
 
-                             else
-                                ownerToString params.sourceBranchOwner ++ ":" ++ params.sourceBranch
-                            )
+                        else
+                            ownerToString params.sourceBranchOwner
+                                ++ ":"
+                                ++ branchToString params.sourceBranch
+                                |> Json.Encode.string
                       )
                     , ( "body", Json.Encode.string params.description )
                     ]
@@ -771,7 +795,7 @@ NOTE: Not all input options and output fields are supported yet. Pull requests a
 updateFileContents :
     { authToken : OAuthToken
     , repo : String
-    , branch : String
+    , branch : Branch
     , path : String
     , sha : ShaHash a
     , message : String
@@ -803,7 +827,7 @@ updateFileContents params =
                     [ ( "message", Json.Encode.string params.message )
                     , ( "content", Json.Encode.string (Base64.encode params.content) )
                     , ( "sha", encodeSha params.sha )
-                    , ( "branch", Json.Encode.string params.branch )
+                    , ( "branch", encodeBranch params.branch )
                     ]
                 )
         , resolver = jsonResolver decoder
@@ -933,6 +957,30 @@ owner =
 ownerToString : Owner -> String
 ownerToString (Owner owner_) =
     owner_
+
+
+type Branch
+    = Branch String
+
+
+branch : String -> Branch
+branch =
+    Branch
+
+
+branchToString : Branch -> String
+branchToString (Branch branch_) =
+    branch_
+
+
+encodeBranch : Branch -> Json.Encode.Value
+encodeBranch =
+    branchToString >> Json.Encode.string
+
+
+decodeBranch : Json.Decode.Decoder Branch
+decodeBranch =
+    Json.Decode.map branch Json.Decode.string
 
 
 type OAuthToken
