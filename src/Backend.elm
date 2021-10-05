@@ -72,7 +72,7 @@ updateFromFrontend _ clientId msg model =
                                 (\_ ->
                                     -- Sometimes auth will cause the request to fail if it wasn't needed so we try again without auth here.
                                     Github.getBranchZip
-                                        { authToken = Just oauthToken, owner = Env.owner, repo = Env.repo, branchName = Nothing }
+                                        { authToken = Just oauthToken, owner = Env.owner, repo = Env.repo, branchName = Just branch }
                                 )
                             |> Task.map (Tuple.pair branch)
                     )
