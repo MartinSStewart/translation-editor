@@ -169,6 +169,7 @@ initEditor :
         | parsedFiles : List { path : String, result : List TranslationDeclaration, original : String }
         , oauthToken : Github.OAuthToken
         , loadedChanges : Dict TranslationId String
+        , branch : Github.Branch
     }
     -> ( State, Cmd msg )
 initEditor parsingModel =
@@ -271,7 +272,7 @@ update msg model =
                                         }
                               }
                             , Cmd.batch
-                                [ Lamdera.sendToBackend (GetZipRequest authToken)
+                                [ Lamdera.sendToBackend (GetZipRequest authToken startModel.branch)
                                 ]
                             )
 
@@ -701,7 +702,7 @@ startLoading oauthToken maybeCache branch model =
                 , branch = branch
                 }
       }
-    , Lamdera.sendToBackend (GetZipRequest oauthToken)
+    , Lamdera.sendToBackend (GetZipRequest oauthToken branch)
     )
 
 
