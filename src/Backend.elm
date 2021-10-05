@@ -51,15 +51,30 @@ updateFromFrontend _ clientId msg model =
                 |> Task.attempt (GotAccessToken clientId)
             )
 
-        GetZipRequest oauthToken ->
+        GetZipRequest oauthToken maybeBranch ->
+            let
+                getBranch =
+                    case maybeBranch of
+                        Just branch ->
+                            Task.succeed branch
+
+                        Nothing ->
+                            Github.getRepository { authToken = oauthToken, owner = Env.owner, repo = Env.repo }
+                                |> Task.map .defaultBranch
+            in
             ( model
-            , Github.getBranchZip
-                { authToken = Nothing, owner = Env.owner, repo = Env.repo, branchName = Nothing }
-                |> Task.onError
-                    (\_ ->
-                        -- Sometimes auth will cause the request to fail if it wasn't needed so we try again without auth here.
+            , getBranch
+                |> Task.andThen
+                    (\branch ->
                         Github.getBranchZip
-                            { authToken = Just oauthToken, owner = Env.owner, repo = Env.repo, branchName = Nothing }
+                            { authToken = Nothing, owner = Env.owner, repo = Env.repo, branchName = Just branch }
+                            |> Task.onError
+                                (\_ ->
+                                    -- Sometimes auth will cause the request to fail if it wasn't needed so we try again without auth here.
+                                    Github.getBranchZip
+                                        { authToken = Just oauthToken, owner = Env.owner, repo = Env.repo, branchName = Just branch }
+                                )
+                            |> Task.map (Tuple.pair branch)
                     )
                 |> Task.attempt (LoadedZipBackend clientId)
             )

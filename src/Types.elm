@@ -5,7 +5,7 @@ import Browser exposing (UrlRequest)
 import Browser.Navigation
 import Bytes exposing (Bytes)
 import Cache exposing (Cache)
-import Github exposing (AccessTokenResponse, OAuthCode, OAuthToken)
+import Github exposing (AccessTokenResponse, Branch, OAuthCode, OAuthToken)
 import Http
 import Lamdera exposing (ClientId)
 import List.Nonempty exposing (Nonempty)
@@ -24,11 +24,11 @@ type alias FrontendModel =
 
 type State
     = Start StartModel
-    | Authenticate (Maybe Cache)
+    | Authenticate (Maybe Cache) (Maybe Branch)
     | Loading LoadingModel
     | Parsing ParsingModel
     | Editor EditorModel
-    | ParsingFailed { path : String }
+    | ParsingFailed { path : String, branch : Branch }
     | LoadFailed Http.Error
 
 
@@ -38,6 +38,7 @@ type alias LoadingModel =
     , directoriesRemaining : Set String
     , fileContents : List ( String, String )
     , cache : Maybe Cache
+    , branch : Maybe Branch
     }
 
 
@@ -47,6 +48,7 @@ type alias ParsingModel =
     , oauthToken : OAuthToken
     , loadedChanges : Dict TranslationId String
     , cache : Maybe Cache
+    , branch : Branch
     }
 
 
@@ -68,6 +70,7 @@ type alias EditorModel =
     , changeCounter : Int
     , showOnlyMissingTranslations : Bool
     , name : String
+    , branch : Branch
 
     -- These fields can be derived from translations but we avoid that for performance
     -- This isn't a big issue as these values should never change
@@ -96,6 +99,7 @@ type alias StartModel =
     , pressedSubmit : Bool
     , loginFailed : Bool
     , cache : Maybe Cache
+    , branch : Maybe Branch
     }
 
 
@@ -128,14 +132,14 @@ type FrontendMsg
 
 type ToBackend
     = AuthenticateRequest OAuthCode
-    | GetZipRequest OAuthToken
+    | GetZipRequest OAuthToken (Maybe Branch)
 
 
 type BackendMsg
     = GotAccessToken ClientId (Result Http.Error AccessTokenResponse)
-    | LoadedZipBackend ClientId (Result Http.Error Bytes)
+    | LoadedZipBackend ClientId (Result Http.Error ( Branch, Bytes ))
 
 
 type ToFrontend
     = AuthenticateResponse (Result Http.Error OAuthToken)
-    | GetZipResponse (Result Http.Error Bytes)
+    | GetZipResponse (Result Http.Error ( Branch, Bytes ))

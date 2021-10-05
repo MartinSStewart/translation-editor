@@ -79,20 +79,21 @@ init url key =
     let
         ( state, cmd ) =
             case Url.Parser.parse parseRoute url of
-                Just (Just token) ->
-                    ( Authenticate Nothing
+                Just ( Just token, maybeBranch ) ->
+                    ( Authenticate Nothing maybeBranch
                     , Cmd.batch
                         [ Browser.Navigation.replaceUrl key Env.domain
                         , Lamdera.sendToBackend (AuthenticateRequest token)
                         ]
                     )
 
-                Just Nothing ->
+                Just ( Nothing, maybeBranch ) ->
                     ( Start
                         { personalAccessToken = ""
                         , pressedSubmit = False
                         , loginFailed = False
                         , cache = Nothing
+                        , branch = maybeBranch
                         }
                     , local_storage_request_load_to_js { key = authTokenLocalStorageKey }
                     )
@@ -103,6 +104,7 @@ init url key =
                         , pressedSubmit = False
                         , loginFailed = False
                         , cache = Nothing
+                        , branch = Nothing
                         }
                     , local_storage_request_load_to_js { key = authTokenLocalStorageKey }
                     )
@@ -167,6 +169,7 @@ initEditor :
         | parsedFiles : List { path : String, result : List TranslationDeclaration, original : String }
         , oauthToken : Github.OAuthToken
         , loadedChanges : Dict TranslationId String
+        , branch : Github.Branch
     }
     -> ( State, Cmd msg )
 initEditor parsingModel =
@@ -196,6 +199,7 @@ initEditor parsingModel =
         , name = ""
         , hiddenLanguages = Set.empty
         , allLanguages = List.map .language translations |> Set.fromList
+        , branch = parsingModel.branch
         }
         parsingModel.loadedChanges
         |> Editor
@@ -264,10 +268,11 @@ update msg model =
                                         , oauthToken = authToken
                                         , fileContents = []
                                         , cache = Nothing
+                                        , branch = startModel.branch
                                         }
                               }
                             , Cmd.batch
-                                [ Lamdera.sendToBackend (GetZipRequest authToken)
+                                [ Lamdera.sendToBackend (GetZipRequest authToken startModel.branch)
                                 ]
                             )
 
@@ -283,7 +288,7 @@ update msg model =
             if key == authTokenLocalStorageKey then
                 case ( model.state, value ) of
                     ( Start startModel, Just oauthToken ) ->
-                        startLoading (Github.oauthToken oauthToken) startModel.cache model
+                        startLoading (Github.oauthToken oauthToken) startModel.cache startModel.branch model
 
                     _ ->
                         ( model, Cmd.none )
@@ -303,8 +308,8 @@ update msg model =
                                             Start startModel ->
                                                 Start { startModel | cache = Just cache }
 
-                                            Authenticate _ ->
-                                                Authenticate (Just cache)
+                                            Authenticate _ branch ->
+                                                Authenticate (Just cache) branch
 
                                             Loading loadingModel ->
                                                 Loading { loadingModel | cache = Just cache }
@@ -376,7 +381,7 @@ update msg model =
                                 |> Tuple.mapFirst (\newState -> { model | state = newState })
 
                         Err _ ->
-                            ( { model | state = ParsingFailed { path = translation.path } }, Cmd.none )
+                            ( { model | state = ParsingFailed { path = translation.path, branch = parsingModel.branch } }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -517,8 +522,8 @@ update msg model =
                             ( { model | state = Editor { editor | submitStatus = Submitting } }
                             , createPullRequest
                                 editor.oauthToken
-                                "master"
-                                ("edit-" ++ hash)
+                                editor.branch
+                                (Github.branch ("edit-" ++ hash))
                                 changes
                                 (pullRequestMessage editor.name editor.pullRequestMessage)
                                 |> Task.attempt PullRequestCreated
@@ -622,7 +627,10 @@ update msg model =
         PressedToggleOnlyMissingTranslations ->
             case model.state of
                 Editor editor ->
-                    ( { model | state = Editor { editor | showOnlyMissingTranslations = not editor.showOnlyMissingTranslations } }
+                    ( { model
+                        | state =
+                            Editor { editor | showOnlyMissingTranslations = not editor.showOnlyMissingTranslations }
+                      }
                     , Cmd.none
                     )
 
@@ -681,8 +689,8 @@ translationIdCodec =
         |> Serialize.finishRecord
 
 
-startLoading : Github.OAuthToken -> Maybe Cache -> FrontendModel -> ( FrontendModel, Cmd frontendMsg )
-startLoading oauthToken maybeCache model =
+startLoading : Github.OAuthToken -> Maybe Cache -> Maybe Github.Branch -> FrontendModel -> ( FrontendModel, Cmd frontendMsg )
+startLoading oauthToken maybeCache branch model =
     ( { model
         | state =
             Loading
@@ -691,9 +699,10 @@ startLoading oauthToken maybeCache model =
                 , oauthToken = oauthToken
                 , fileContents = []
                 , cache = maybeCache
+                , branch = branch
                 }
       }
-    , Lamdera.sendToBackend (GetZipRequest oauthToken)
+    , Lamdera.sendToBackend (GetZipRequest oauthToken branch)
     )
 
 
@@ -725,8 +734,8 @@ updateChanges translationId newText editorModel =
 
 createPullRequest :
     Github.OAuthToken
-    -> String
-    -> String
+    -> Github.Branch
+    -> Github.Branch
     -> Nonempty { path : String, content : String }
     -> String
     -> Task ( String, Http.Error ) { apiUrl : String, htmlUrl : String }
@@ -831,7 +840,7 @@ retryGetBranch :
     Github.OAuthToken
     -> Int
     -> { a | repo : String, owner : Github.Owner }
-    -> String
+    -> Github.Branch
     -> Task Http.Error (Github.ShaHash Github.CommitSha)
 retryGetBranch token attemptsLeft fork branchName =
     Github.getBranch
@@ -866,10 +875,10 @@ updateFromBackend msg model =
     case msg of
         AuthenticateResponse result ->
             case model.state of
-                Authenticate maybeCache ->
+                Authenticate maybeCache maybeBranch ->
                     case result of
                         Ok oauthToken ->
-                            startLoading oauthToken maybeCache model
+                            startLoading oauthToken maybeCache maybeBranch model
 
                         Err _ ->
                             ( { model
@@ -879,6 +888,7 @@ updateFromBackend msg model =
                                         , pressedSubmit = False
                                         , loginFailed = True
                                         , cache = maybeCache
+                                        , branch = maybeBranch
                                         }
                               }
                             , Cmd.none
@@ -897,10 +907,10 @@ updateFromBackend msg model =
                     ( model, Cmd.none )
 
 
-handleZipLoaded : Result Http.Error Bytes -> LoadingModel -> ( State, Cmd FrontendMsg )
+handleZipLoaded : Result Http.Error ( Github.Branch, Bytes ) -> LoadingModel -> ( State, Cmd FrontendMsg )
 handleZipLoaded result loadingModel =
     case result of
-        Ok zipBytes ->
+        Ok ( branch, zipBytes ) ->
             case Zip.fromBytes zipBytes of
                 Just zip ->
                     let
@@ -934,6 +944,7 @@ handleZipLoaded result loadingModel =
                         , oauthToken = loadingModel.oauthToken
                         , loadedChanges = Dict.empty
                         , cache = loadingModel.cache
+                        , branch = branch
                         }
                         |> Tuple.mapSecond
                             (\cmd ->
@@ -960,10 +971,11 @@ changesLocalStorageKey =
     "changes"
 
 
-parseRoute : Url.Parser.Parser (Maybe OAuthCode -> a) a
+parseRoute : Url.Parser.Parser (( Maybe OAuthCode, Maybe Github.Branch ) -> a) a
 parseRoute =
-    Url.Parser.Query.string "code"
-        |> Url.Parser.Query.map (Maybe.map Github.oauthCode)
+    Url.Parser.Query.map2 Tuple.pair
+        (Url.Parser.Query.string "code" |> Url.Parser.Query.map (Maybe.map Github.oauthCode))
+        (Url.Parser.Query.string "branch" |> Url.Parser.Query.map (Maybe.map Github.branch))
         |> Url.Parser.query
 
 
@@ -1037,7 +1049,7 @@ view model =
                             , Element.padding 16
                             ]
 
-                Authenticate _ ->
+                Authenticate _ _ ->
                     Element.text "Authenticating..."
                         |> Element.el [ Element.padding 16 ]
             )
