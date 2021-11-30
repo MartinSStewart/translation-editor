@@ -1,10 +1,9 @@
 module Github exposing
     ( OAuthToken, oauthToken, oauthTokenToString, AccessTokenResponse, oauthLink, OAuthCode, oauthCode, oauthCodeToString, ClientId, clientId, clientIdToString, ClientSecret, clientSecret, clientSecretToString, getAccessToken, Scope(..), scopeFromString, scopeToString
     , getRepository, getContents, Owner, owner, ownerToString, updateFileContents
-    , getBranch, updateBranch, listTags, createBranch, getBranchZip, getTag, getCommit, createCommit, getCommitZip, sha, shaToString, ShaHash, CommitSha, TreeSha, Content(..), ContentType(..), DirectoryEntry, createTree
+    , Branch, branch, branchToString, getBranches, getBranch, updateBranch, listTags, createBranch, getBranchZip, getTag, getCommit, createCommit, getCommitZip, sha, shaToString, ShaHash, CommitSha, TreeSha, Content(..), ContentType(..), DirectoryEntry, createTree
     , PullRequest, getPullRequests, getPullRequest, createPullRequest, createFork
     , getComments, createComment, createIssue
-    , Branch, branch, branchToString, getBranches
     )
 
 {-|
@@ -22,7 +21,7 @@ module Github exposing
 
 ## Work with git
 
-@docs getBranch, updateBranch, listTags, createBranch, getBranchZip, getTag, getCommit, createCommit, getCommitZip, sha, shaToString, ShaHash, CommitSha, TreeSha, Content, ContentType, DirectoryEntry, createTree
+@docs Branch, branch, branchToString, getBranches, getBranch, updateBranch, listTags, createBranch, getBranchZip, getTag, getCommit, createCommit, getCommitZip, sha, shaToString, ShaHash, CommitSha, TreeSha, Content, ContentType, DirectoryEntry, createTree
 
 
 ## Pull request
@@ -106,6 +105,8 @@ getBranches params =
         }
 
 
+{-| authToken is Maybe here because it seems like there can be problems request a zip from a public repo if you provide authentication.
+-}
 getBranchZip :
     { authToken : Maybe OAuthToken
     , owner : Owner
@@ -144,6 +145,7 @@ getBranchZip params =
         }
 
 
+{-| -}
 getCommitZip : { authToken : OAuthToken, owner : Owner, repo : String, sha : ShaHash CommitSha } -> Task Http.Error Bytes
 getCommitZip params =
     Http.task
@@ -303,34 +305,6 @@ getTag params =
         }
 
 
-
---{-| See <https://docs.github.com/en/rest/reference/git#get-a-tree>
---
---NOTE: Not all input options and output fields are supported yet. Pull requests adding more complete support are welcome.
---
----}
---getTree :
---    { authToken : AuthToken
---    , owner : Owner
---    , repo : String
---    , treeSha : ShaHash
---    }
---    -> Task Http.Error (List TreeNode)
---getTree params =
---    let
---        decoder =
---            Json.Decode.field "tree" (Json.Decode.list decodeTreeNode)
---    in
---    Http.task
---        { method = "GET"
---        , headers = [ authorizationHeader params.authToken ]
---        , url = "https://api.github.com/repos/" ++ ownerToString params.owner ++ "/" ++ params.repo ++ "/git/trees/" ++ shaToString params.treeSha
---        , body = Http.emptyBody
---        , resolver = jsonResolver decoder
---        , timeout = Nothing
---        }
-
-
 {-| See <https://docs.github.com/en/rest/reference/git#create-a-tree>
 
 NOTE: Not all input options and output fields are supported yet. Pull requests adding more complete support are welcome.
@@ -370,16 +344,6 @@ createTree params =
         }
 
 
-
---
---type TreeNode
---    = Subdirectory { path : String, sha : ShaHash }
---    | Blob { path : String, sha : ShaHash, size : Int }
---    | ExecutableBlob { path : String, sha : ShaHash, size : Int }
---    | Submodule
---    | Symlink
-
-
 encodeTreeNode : { path : String, content : String } -> Json.Encode.Value
 encodeTreeNode treeNode =
     ( "path", Json.Encode.string treeNode.path )
@@ -388,42 +352,6 @@ encodeTreeNode treeNode =
         :: ( "content", Json.Encode.string treeNode.content )
         :: []
         |> Json.Encode.object
-
-
-
---
---decodeTreeNode : Json.Decode.Decoder TreeNode
---decodeTreeNode =
---    Json.Decode.field "mode" Json.Decode.string
---        |> Json.Decode.andThen
---            (\mode ->
---                case String.toInt mode of
---                    Just 100644 ->
---                        Json.Decode.map3 (\path sha_ size -> Blob { path = path, sha = sha_, size = size })
---                            (Json.Decode.field "path" Json.Decode.string)
---                            (Json.Decode.field "sha" decodeSha)
---                            (Json.Decode.field "size" Json.Decode.int)
---
---                    Just 100755 ->
---                        Json.Decode.map3 (\path sha_ size -> ExecutableBlob { path = path, sha = sha_, size = size })
---                            (Json.Decode.field "path" Json.Decode.string)
---                            (Json.Decode.field "sha" decodeSha)
---                            (Json.Decode.field "size" Json.Decode.int)
---
---                    Just 40000 ->
---                        Json.Decode.map2 (\path sha_ -> Subdirectory { path = path, sha = sha_ })
---                            (Json.Decode.field "path" Json.Decode.string)
---                            (Json.Decode.field "sha" decodeSha)
---
---                    Just 160000 ->
---                        Json.Decode.succeed Submodule
---
---                    Just 120000 ->
---                        Json.Decode.succeed Symlink
---
---                    _ ->
---                        Json.Decode.fail ("Invalid mode: " ++ mode)
---            )
 
 
 referenceDecoder =
@@ -1337,18 +1265,6 @@ type alias AccessTokenResponse =
     , scope : String
     , tokenType : String
     }
-
-
-
---getUser params =
---    Http.task
---        { method = "GET"
---        , headers = [ authorizationHeader params.authToken ]
---        , url = "https://api.github.com/user/" ++ ownerToString params.owner ++ "/" ++ params.repo
---        , body = Http.emptyBody
---        , resolver = jsonResolver decoder
---        , timeout = Nothing
---        }
 
 
 {-| See <https://docs.github.com/en/rest/reference/issues#create-an-issue>

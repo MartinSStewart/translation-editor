@@ -3,6 +3,8 @@ module MergeTest exposing (..)
 import AssocList as Dict
 import Editor exposing (Error(..))
 import Elm.Syntax.Expression exposing (Expression(..))
+import Elm.Syntax.Infix exposing (InfixDirection(..))
+import Elm.Syntax.Node exposing (Node(..))
 import Expect
 import Github
 import List.Extra as List
@@ -91,6 +93,7 @@ tests =
                                 , allLanguages = Set.fromList [ "en", "sv" ]
                                 , groups = []
                                 , name = ""
+                                , branch = Github.branch "main"
                                 }
                         in
                         Editor.applyChanges editorModel
@@ -129,6 +132,7 @@ tests =
                                 , allLanguages = Set.fromList [ "en", "sv" ]
                                 , groups = []
                                 , name = ""
+                                , branch = Github.branch "main"
                                 }
                         in
                         Editor.applyChanges editorModel |> Expect.equal expected
@@ -160,6 +164,59 @@ tests =
                                                     { start = { column = 33, row = 72 }
                                                     , end = { column = 36, row = 72 }
                                                     }
+                                                }
+                                            )
+                                        )
+                                    )
+
+                        Err _ ->
+                            Expect.fail "Failed to parse"
+            , test "markdown test" <|
+                \_ ->
+                    case TranslationParser.parse "A.elm" TranslationTestCode.code of
+                        Ok translations ->
+                            List.find
+                                (\translation ->
+                                    translation.functionName == "englishTexts"
+                                )
+                                translations
+                                |> Maybe.map
+                                    (\englishTranslations ->
+                                        Dict.get
+                                            (Nonempty "form" [ "termsOfService" ])
+                                            englishTranslations.translations
+                                    )
+                                |> Expect.equal
+                                    (Just
+                                        (Just
+                                            (Ok
+                                                { range = { end = { column = 193, row = 8 }, start = { column = 36, row = 8 } }
+                                                , value =
+                                                    Nonempty
+                                                        (Placeholder
+                                                            (OperatorApplication "|>"
+                                                                Left
+                                                                (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } }
+                                                                    (OperatorApplication "++"
+                                                                        Left
+                                                                        (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } }
+                                                                            (OperatorApplication "++"
+                                                                                Left
+                                                                                (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } (Literal "By clicking on **Log in** you agree to the use of cookies. Read more in our [complete cookie policy]("))
+                                                                                (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } }
+                                                                                    (RecordAccess (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } (FunctionOrValue [] "urls"))
+                                                                                        (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } "termsOfService")
+                                                                                    )
+                                                                                )
+                                                                            )
+                                                                        )
+                                                                        (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } (Literal ")."))
+                                                                    )
+                                                                )
+                                                                (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } (FunctionOrValue [ "Markdown" ] "fromString"))
+                                                            )
+                                                        )
+                                                        []
                                                 }
                                             )
                                         )

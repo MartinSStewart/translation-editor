@@ -36,7 +36,7 @@ type alias TranslationDeclaration =
     { filePath : String
     , functionName : String
     , language : String
-    , translations : Dict (Nonempty String) (Result () { value : Nonempty Content, range : Range })
+    , translations : Dict (Nonempty String) (Result () { value : Nonempty Content, range : Range, isMarkdown : Maybe Expression })
     }
 
 
@@ -178,12 +178,16 @@ type Translation
 
 
 type alias TranslationValue =
-    { name : String, parameters : List Pattern, value : Node (Nonempty Content) }
+    { name : String, parameters : List Pattern, value : Node (Nonempty Content), isMarkdown : Maybe Expression }
 
 
 type Content
     = TextContent String
     | Placeholder Expression
+
+
+type alias MarkdownData =
+    { placeholder : Expression, markdownFunction : Expression }
 
 
 contentCodec : Serialize.Codec DecodeError Content
@@ -239,13 +243,39 @@ writeContents contents =
         |> Node.value
 
 
+parseTranslationValueHelper : Node Expression -> List String -> String -> Maybe { content : Nonempty Content, isMarkdown : Maybe Expression }
+parseTranslationValueHelper left moduleName functionOrValue =
+    if List.any (String.toLower >> String.contains "markdown") (functionOrValue :: moduleName) then
+        { content = parseTranslationValue left
+        , isMarkdown = Just (FunctionOrValue moduleName functionOrValue)
+        }
+            |> Just
+
+    else
+        Nothing
+
+
+parseTranslationValueHelper2 : Node Expression -> Maybe { content : Nonempty Content, isMarkdown : Maybe Expression }
+parseTranslationValueHelper2 expression =
+    case Node.value expression of
+        OperatorApplication "|>" _ left (Node _ (FunctionOrValue moduleName functionOrValue)) ->
+            parseTranslationValueHelper left moduleName functionOrValue
+
+        OperatorApplication "<|" _ left (Node _ (FunctionOrValue moduleName functionOrValue)) ->
+            parseTranslationValueHelper left moduleName functionOrValue
+
+        Application [ Node _ (FunctionOrValue moduleName functionOrValue), second ] ->
+            parseTranslationValueHelper second moduleName functionOrValue
+
+        _ ->
+            Just { content = parseTranslationValue expression, isMarkdown = Nothing }
+
+
 parseTranslationValue : Node Expression -> Nonempty Content
 parseTranslationValue expression =
     case Node.value expression of
         OperatorApplication "++" _ left right ->
-            List.Nonempty.append
-                (parseTranslationValue left)
-                (parseTranslationValue right)
+            List.Nonempty.append (parseTranslationValue left) (parseTranslationValue right)
 
         Literal text ->
             TextContent text |> List.Nonempty.fromElement
@@ -356,16 +386,27 @@ parseRecordFieldHelper range name value =
             parseRecordFieldHelper (Node.range expression) name (Node.value expression)
 
         LambdaExpression { args, expression } ->
-            { name = name
-            , parameters = List.map Node.value args
-            , value = parseTranslationValue expression |> Node (Node.range expression)
-            }
-                |> Translation
+            case parseTranslationValueHelper2 expression of
+                Just { content, isMarkdown } ->
+                    { name = name
+                    , parameters = List.map Node.value args
+                    , value = Node (Node.range expression) content
+                    , isMarkdown = isMarkdown
+                    }
+                        |> Translation
+
+                Nothing ->
+                    { name = name
+                    , rowNumber = range.start.row
+                    , expression = value
+                    }
+                        |> ParseError
 
         Literal text ->
             { name = name
             , parameters = []
             , value = List.Nonempty.fromElement (TextContent text) |> Node range
+            , isMarkdown = Nothing
             }
                 |> Translation
 
