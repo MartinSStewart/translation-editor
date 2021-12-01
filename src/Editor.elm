@@ -9,6 +9,7 @@ import Element.Font
 import Element.Input
 import Element.Lazy
 import Elm.Pretty
+import Elm.Syntax.Expression exposing (Expression)
 import Elm.Syntax.Range exposing (Range)
 import Env
 import Github
@@ -18,8 +19,8 @@ import List.Extra as List
 import List.Nonempty exposing (Nonempty(..))
 import Pretty
 import Set exposing (Set)
-import TranslationParser exposing (Content(..), TranslationDeclaration)
-import Types exposing (EditorModel, FrontendMsg(..), SubmitStatus(..), TranslationGroup, TranslationId)
+import TranslationParser exposing (Content(..), TranslationDeclaration, TranslationValue_)
+import Types exposing (EditorModel, FrontendMsg(..), IsMarkdown(..), SubmitStatus(..), TranslationGroup, TranslationId)
 
 
 type alias Model =
@@ -517,6 +518,31 @@ errorMessage text =
     Element.el [ Element.Font.color errorColor ] (Element.text text)
 
 
+markdownTag : Bool -> Element msg
+markdownTag isPartiallyMarkdown =
+    Element.el
+        [ Element.Font.size 16
+        , Element.Font.color (Element.rgb 1 1 1)
+        , Element.Background.color
+            (if isPartiallyMarkdown then
+                Element.rgb 0.4 0.4 0.2
+
+             else
+                Element.rgb 0.6 0.4 0.2
+            )
+        , Element.paddingXY 10 7
+        , Element.Border.rounded 99
+        ]
+        (Element.text
+            (if isPartiallyMarkdown then
+                "Markdown?"
+
+             else
+                "Markdown"
+            )
+        )
+
+
 translationView :
     Set String
     -> List TranslationDeclaration
@@ -545,7 +571,7 @@ translationView hiddenLanguages translationData changes translationGroup =
         , Element.padding 8
         ]
         [ Element.row
-            [ Element.width Element.fill, Element.height (Element.px 30) ]
+            [ Element.width Element.fill, Element.height (Element.px 30), Element.spacing 8 ]
             [ Element.row
                 [ Element.spacing 16 ]
                 [ Element.text (List.Nonempty.toList translationGroup.path |> String.join ".")
@@ -554,15 +580,27 @@ translationView hiddenLanguages translationData changes translationGroup =
                     ]
                     (Element.text translationGroup.filePath)
                 ]
-            , if hasNoChanges then
-                Element.none
+            , Element.row
+                [ Element.alignRight, Element.spacing 8 ]
+                [ if hasNoChanges then
+                    Element.none
 
-              else
-                Element.Input.button
-                    (Element.alignRight :: buttonAttributes ++ [ Element.padding 4 ])
-                    { onPress = Just (PressedResetTranslationGroup { path = translationGroup.path })
-                    , label = Element.text "Reset"
-                    }
+                  else
+                    Element.Input.button
+                        (buttonAttributes ++ [ Element.padding 4 ])
+                        { onPress = Just (PressedResetTranslationGroup { path = translationGroup.path })
+                        , label = Element.text "Reset"
+                        }
+                , case translationGroup.isMarkdown of
+                    IsMarkdown ->
+                        markdownTag False
+
+                    IsPartiallyMarkdown ->
+                        markdownTag True
+
+                    IsPlainText ->
+                        Element.none
+                ]
             ]
         , Element.column
             [ Element.spacing 8, Element.width Element.fill ]
@@ -611,19 +649,24 @@ translationView hiddenLanguages translationData changes translationGroup =
 getTranslation :
     TranslationId
     -> List TranslationDeclaration
-    -> Maybe (Result () ( TranslationDeclaration, { value : Nonempty Content, range : Range } ))
+    -> Maybe (Result () ( TranslationDeclaration, TranslationValue_ ))
 getTranslation translationId translationDeclarations =
     List.filterMap
         (\translation ->
-            if
-                (translationId.filePath == translation.filePath)
-                    && (translationId.functionName == translation.functionName)
-            then
-                Dict.get translationId.path translation.translations
-                    |> Maybe.map (Result.map (Tuple.pair translation))
+            case
+                ( translationId.filePath == translation.filePath
+                , translationId.functionName == translation.functionName
+                , Dict.get translationId.path translation.translations
+                )
+            of
+                ( True, True, Just (Ok a) ) ->
+                    ( translation, a ) |> Ok |> Just
 
-            else
-                Nothing
+                ( True, True, Just (Err error) ) ->
+                    Err error |> Just
+
+                _ ->
+                    Nothing
         )
         translationDeclarations
         |> List.head
@@ -743,7 +786,7 @@ applyChanges model =
                             Ok parsedText ->
                                 let
                                     code =
-                                        TranslationParser.writeContents parsedText
+                                        TranslationParser.writeContents translation.isMarkdown parsedText
                                             |> Elm.Pretty.prettyExpression
                                             |> Pretty.pretty 100
                                 in
