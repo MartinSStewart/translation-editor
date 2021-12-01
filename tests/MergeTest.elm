@@ -3,7 +3,6 @@ module MergeTest exposing (..)
 import AssocList as Dict
 import Editor exposing (Error(..))
 import Elm.Syntax.Expression exposing (Expression(..))
-import Elm.Syntax.Infix exposing (InfixDirection(..))
 import Elm.Syntax.Node exposing (Node(..))
 import Expect
 import Github
@@ -144,11 +143,7 @@ tests =
                 \_ ->
                     case TranslationParser.parse "A.elm" TranslationTestCode.code of
                         Ok translations ->
-                            List.find
-                                (\translation ->
-                                    translation.functionName == "swedishTexts"
-                                )
-                                translations
+                            List.find (.functionName >> (==) "swedishTexts") translations
                                 |> Maybe.map
                                     (\swedishTranslation ->
                                         Dict.get
@@ -164,6 +159,7 @@ tests =
                                                     { start = { column = 33, row = 72 }
                                                     , end = { column = 36, row = 72 }
                                                     }
+                                                , isMarkdown = Nothing
                                                 }
                                             )
                                         )
@@ -193,30 +189,11 @@ tests =
                                                 { range = { end = { column = 193, row = 8 }, start = { column = 36, row = 8 } }
                                                 , value =
                                                     Nonempty
-                                                        (Placeholder
-                                                            (OperatorApplication "|>"
-                                                                Left
-                                                                (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } }
-                                                                    (OperatorApplication "++"
-                                                                        Left
-                                                                        (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } }
-                                                                            (OperatorApplication "++"
-                                                                                Left
-                                                                                (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } (Literal "By clicking on **Log in** you agree to the use of cookies. Read more in our [complete cookie policy]("))
-                                                                                (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } }
-                                                                                    (RecordAccess (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } (FunctionOrValue [] "urls"))
-                                                                                        (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } "termsOfService")
-                                                                                    )
-                                                                                )
-                                                                            )
-                                                                        )
-                                                                        (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } (Literal ")."))
-                                                                    )
-                                                                )
-                                                                (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } (FunctionOrValue [ "Markdown" ] "fromString"))
-                                                            )
-                                                        )
-                                                        []
+                                                        (TextContent "By clicking on **Log in** you agree to the use of cookies. Read more in our [complete cookie policy](")
+                                                        [ Placeholder (RecordAccess (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } (FunctionOrValue [] "urls")) (Node { end = { column = 0, row = 0 }, start = { column = 0, row = 0 } } "termsOfService"))
+                                                        , TextContent ")."
+                                                        ]
+                                                , isMarkdown = Just (FunctionOrValue [ "Markdown" ] "fromString")
                                                 }
                                             )
                                         )

@@ -1060,7 +1060,7 @@ view model =
 groupTranslations : List TranslationDeclaration -> List TranslationGroup
 groupTranslations translations_ =
     let
-        translations : List { path : Nonempty String, filePath : String, functionName : String }
+        translations : List ( Bool, { path : Nonempty String, filePath : String, functionName : String } )
         translations =
             List.concatMap
                 (\translationDeclaration ->
@@ -1068,11 +1068,13 @@ groupTranslations translations_ =
                         |> List.filterMap
                             (\( key, a ) ->
                                 case a of
-                                    Ok _ ->
-                                        { path = key
-                                        , filePath = translationDeclaration.filePath
-                                        , functionName = translationDeclaration.functionName
-                                        }
+                                    Ok ok ->
+                                        ( ok.isMarkdown /= Nothing
+                                        , { path = key
+                                          , filePath = translationDeclaration.filePath
+                                          , functionName = translationDeclaration.functionName
+                                          }
+                                        )
                                             |> Just
 
                                     Err _ ->
@@ -1081,17 +1083,30 @@ groupTranslations translations_ =
                 )
                 translations_
 
-        groupByPath : List ( TranslationId, List TranslationId )
+        groupByPath : List ( ( Bool, TranslationId ), List ( Bool, TranslationId ) )
         groupByPath =
-            List.gatherEqualsBy (\a -> ( List.Nonempty.toList a.path, a.filePath )) translations
+            List.gatherEqualsBy (\( _, a ) -> ( List.Nonempty.toList a.path, a.filePath )) translations
     in
     groupByPath
         |> List.map
-            (\( first, rest ) ->
+            (\( ( isMarkdown, first ), rest ) ->
                 { path = first.path
                 , filePath = first.filePath
-                , functionNames = List.Nonempty.map .functionName (Nonempty first rest)
-                , isMarkdown = IsMarkdown
+                , functionNames = List.Nonempty.map .functionName (Nonempty first (List.map Tuple.second rest))
+                , isMarkdown =
+                    case
+                        ( List.any not (isMarkdown :: List.map Tuple.first rest)
+                        , List.any identity (isMarkdown :: List.map Tuple.first rest)
+                        )
+                    of
+                        ( True, True ) ->
+                            IsPartiallyMarkdown
+
+                        ( _, False ) ->
+                            IsPlainText
+
+                        ( False, _ ) ->
+                            IsMarkdown
                 }
             )
 

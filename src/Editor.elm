@@ -531,15 +531,17 @@ markdownTag isPartiallyMarkdown =
                 Element.rgb 0.6 0.3 0
             )
         , Element.padding 4
+        , Element.height Element.fill
         , Element.Border.rounded 4
-        , Element.alignRight
         ]
-        (Element.text
-            (if isPartiallyMarkdown then
-                "Markdown?"
+        (Element.el [ Element.centerY ]
+            (Element.text
+                (if isPartiallyMarkdown then
+                    "Markdown?"
 
-             else
-                "Markdown"
+                 else
+                    "Markdown"
+                )
             )
         )
 
@@ -581,24 +583,27 @@ translationView hiddenLanguages translationData changes translationGroup =
                     ]
                     (Element.text translationGroup.filePath)
                 ]
-            , if hasNoChanges then
-                Element.none
-
-              else
-                Element.Input.button
-                    (Element.alignRight :: buttonAttributes ++ [ Element.padding 4 ])
-                    { onPress = Just (PressedResetTranslationGroup { path = translationGroup.path })
-                    , label = Element.text "Reset"
-                    }
-            , case translationGroup.isMarkdown of
-                IsMarkdown ->
-                    markdownTag False
-
-                IsPartiallyMarkdown ->
-                    markdownTag True
-
-                IsPlainText ->
+            , Element.row
+                [ Element.alignRight, Element.spacing 8 ]
+                [ if hasNoChanges then
                     Element.none
+
+                  else
+                    Element.Input.button
+                        (buttonAttributes ++ [ Element.padding 4 ])
+                        { onPress = Just (PressedResetTranslationGroup { path = translationGroup.path })
+                        , label = Element.text "Reset"
+                        }
+                , case translationGroup.isMarkdown of
+                    IsMarkdown ->
+                        markdownTag False
+
+                    IsPartiallyMarkdown ->
+                        markdownTag True
+
+                    IsPlainText ->
+                        Element.none
+                ]
             ]
         , Element.column
             [ Element.spacing 8, Element.width Element.fill ]
@@ -784,7 +789,7 @@ applyChanges model =
                             Ok parsedText ->
                                 let
                                     code =
-                                        TranslationParser.writeContents parsedText
+                                        TranslationParser.writeContents translation.isMarkdown parsedText
                                             |> Elm.Pretty.prettyExpression
                                             |> Pretty.pretty 100
                                 in
