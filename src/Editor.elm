@@ -571,7 +571,7 @@ translationView hiddenLanguages translationData changes translationGroup =
         , Element.padding 8
         ]
         [ Element.row
-            [ Element.width Element.fill, Element.height (Element.px 30) ]
+            [ Element.width Element.fill, Element.height (Element.px 30), Element.spacing 8 ]
             [ Element.row
                 [ Element.spacing 16 ]
                 [ Element.text (List.Nonempty.toList translationGroup.path |> String.join ".")
