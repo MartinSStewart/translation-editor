@@ -525,23 +525,20 @@ markdownTag isPartiallyMarkdown =
         , Element.Font.color (Element.rgb 1 1 1)
         , Element.Background.color
             (if isPartiallyMarkdown then
-                Element.rgb 0.4 0.4 0
+                Element.rgb 0.4 0.4 0.2
 
              else
-                Element.rgb 0.6 0.3 0
+                Element.rgb 0.6 0.4 0.2
             )
-        , Element.padding 4
-        , Element.height Element.fill
-        , Element.Border.rounded 4
+        , Element.paddingXY 10 7
+        , Element.Border.rounded 99
         ]
-        (Element.el [ Element.centerY ]
-            (Element.text
-                (if isPartiallyMarkdown then
-                    "Markdown?"
+        (Element.text
+            (if isPartiallyMarkdown then
+                "Markdown?"
 
-                 else
-                    "Markdown"
-                )
+             else
+                "Markdown"
             )
         )
 
