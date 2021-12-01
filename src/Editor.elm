@@ -9,6 +9,7 @@ import Element.Font
 import Element.Input
 import Element.Lazy
 import Elm.Pretty
+import Elm.Syntax.Expression exposing (Expression)
 import Elm.Syntax.Range exposing (Range)
 import Env
 import Github
@@ -18,8 +19,8 @@ import List.Extra as List
 import List.Nonempty exposing (Nonempty(..))
 import Pretty
 import Set exposing (Set)
-import TranslationParser exposing (Content(..), TranslationDeclaration)
-import Types exposing (EditorModel, FrontendMsg(..), SubmitStatus(..), TranslationGroup, TranslationId)
+import TranslationParser exposing (Content(..), TranslationDeclaration, TranslationValue_)
+import Types exposing (EditorModel, FrontendMsg(..), IsMarkdown(..), SubmitStatus(..), TranslationGroup, TranslationId)
 
 
 type alias Model =
@@ -517,6 +518,32 @@ errorMessage text =
     Element.el [ Element.Font.color errorColor ] (Element.text text)
 
 
+markdownTag : Bool -> Element msg
+markdownTag isPartiallyMarkdown =
+    Element.el
+        [ Element.Font.size 16
+        , Element.Font.color (Element.rgb 1 1 1)
+        , Element.Background.color
+            (if isPartiallyMarkdown then
+                Element.rgb 0.4 0.4 0
+
+             else
+                Element.rgb 0.6 0.3 0
+            )
+        , Element.padding 4
+        , Element.Border.rounded 4
+        , Element.alignRight
+        ]
+        (Element.text
+            (if isPartiallyMarkdown then
+                "Markdown?"
+
+             else
+                "Markdown"
+            )
+        )
+
+
 translationView :
     Set String
     -> List TranslationDeclaration
@@ -563,6 +590,15 @@ translationView hiddenLanguages translationData changes translationGroup =
                     { onPress = Just (PressedResetTranslationGroup { path = translationGroup.path })
                     , label = Element.text "Reset"
                     }
+            , case translationGroup.isMarkdown of
+                IsMarkdown ->
+                    markdownTag False
+
+                IsPartiallyMarkdown ->
+                    markdownTag True
+
+                IsPlainText ->
+                    Element.none
             ]
         , Element.column
             [ Element.spacing 8, Element.width Element.fill ]
@@ -611,19 +647,24 @@ translationView hiddenLanguages translationData changes translationGroup =
 getTranslation :
     TranslationId
     -> List TranslationDeclaration
-    -> Maybe (Result () ( TranslationDeclaration, { value : Nonempty Content, range : Range } ))
+    -> Maybe (Result () ( TranslationDeclaration, TranslationValue_ ))
 getTranslation translationId translationDeclarations =
     List.filterMap
         (\translation ->
-            if
-                (translationId.filePath == translation.filePath)
-                    && (translationId.functionName == translation.functionName)
-            then
-                Dict.get translationId.path translation.translations
-                    |> Maybe.map (Result.map (Tuple.pair translation))
+            case
+                ( translationId.filePath == translation.filePath
+                , translationId.functionName == translation.functionName
+                , Dict.get translationId.path translation.translations
+                )
+            of
+                ( True, True, Just (Ok a) ) ->
+                    ( translation, a ) |> Ok |> Just
 
-            else
-                Nothing
+                ( True, True, Just (Err error) ) ->
+                    Err error |> Just
+
+                _ ->
+                    Nothing
         )
         translationDeclarations
         |> List.head

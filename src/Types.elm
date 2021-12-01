@@ -56,7 +56,14 @@ type alias TranslationGroup =
     { path : Nonempty String
     , filePath : String
     , functionNames : Nonempty String
+    , isMarkdown : IsMarkdown
     }
+
+
+type IsMarkdown
+    = IsMarkdown
+    | IsPartiallyMarkdown
+    | IsPlainText
 
 
 type alias EditorModel =

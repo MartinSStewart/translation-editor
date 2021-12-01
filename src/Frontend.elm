@@ -1081,11 +1081,7 @@ groupTranslations translations_ =
                 )
                 translations_
 
-        groupByPath :
-            List
-                ( { path : Nonempty String, filePath : String, functionName : String }
-                , List { path : Nonempty String, filePath : String, functionName : String }
-                )
+        groupByPath : List ( TranslationId, List TranslationId )
         groupByPath =
             List.gatherEqualsBy (\a -> ( List.Nonempty.toList a.path, a.filePath )) translations
     in
@@ -1095,6 +1091,7 @@ groupTranslations translations_ =
                 { path = first.path
                 , filePath = first.filePath
                 , functionNames = List.Nonempty.map .functionName (Nonempty first rest)
+                , isMarkdown = IsMarkdown
                 }
             )
 

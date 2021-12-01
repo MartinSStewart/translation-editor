@@ -3,11 +3,10 @@ module Cache exposing (Cache, CachedTranslation, Error(..), cacheFiles, codec, h
 import AssocList as Dict exposing (Dict)
 import AstCodec
 import Dict as RegularDict
-import Elm.Syntax.Range exposing (Range)
 import List.Nonempty exposing (Nonempty)
 import Murmur3
 import Serialize
-import TranslationParser exposing (Content, TranslationDeclaration)
+import TranslationParser exposing (Content, TranslationDeclaration, TranslationValue_)
 
 
 type Error
@@ -17,7 +16,7 @@ type Error
 
 type alias CachedTranslation =
     { functionName : String
-    , translations : Dict (Nonempty String) (Result () { value : Nonempty Content, range : Range })
+    , translations : Dict (Nonempty String) (Result () TranslationValue_)
     }
 
 
@@ -43,7 +42,7 @@ type alias Cache =
 
 
 type CacheVersion
-    = CacheVersion1 Cache
+    = CacheVersion2 Cache
 
 
 codec : Serialize.Codec Error Cache
@@ -51,18 +50,18 @@ codec =
     Serialize.customType
         (\a value ->
             case value of
-                CacheVersion1 data0 ->
+                CacheVersion2 data0 ->
                     a data0
         )
-        |> Serialize.variant1 CacheVersion1 cacheCodec
+        |> Serialize.variant1 CacheVersion2 cacheCodec
         |> Serialize.finishCustomType
         |> Serialize.map
             (\cacheVersion ->
                 case cacheVersion of
-                    CacheVersion1 cache ->
+                    CacheVersion2 cache ->
                         cache
             )
-            CacheVersion1
+            CacheVersion2
 
 
 cacheCodec : Serialize.Codec Error Cache
@@ -106,23 +105,36 @@ cachedTranslationCodec =
                 (nonemptyCodec Serialize.string)
                 (Serialize.result
                     Serialize.unit
-                    (Serialize.record (\a b -> { value = a, range = b })
-                        |> Serialize.field
-                            .value
-                            (nonemptyCodec
-                                (TranslationParser.contentCodec
-                                    |> Serialize.mapError
-                                        (\error ->
-                                            case error of
-                                                AstCodec.InvalidChar ->
-                                                    InvalidCharInExpression
-                                        )
-                                )
-                            )
-                        |> Serialize.field .range AstCodec.range
-                        |> Serialize.finishRecord
-                    )
+                    translationValueCodec
                 )
+            )
+        |> Serialize.finishRecord
+
+
+translationValueCodec : Serialize.Codec Error TranslationValue_
+translationValueCodec =
+    Serialize.record TranslationValue_
+        |> Serialize.field
+            .value
+            (nonemptyCodec
+                (TranslationParser.contentCodec
+                    |> Serialize.mapError
+                        (\error ->
+                            case error of
+                                AstCodec.InvalidChar ->
+                                    InvalidCharInExpression
+                        )
+                )
+            )
+        |> Serialize.field .range AstCodec.range
+        |> Serialize.field .isMarkdown
+            (Serialize.maybe AstCodec.expression
+                |> Serialize.mapError
+                    (\error ->
+                        case error of
+                            AstCodec.InvalidChar ->
+                                InvalidCharInExpression
+                    )
             )
         |> Serialize.finishRecord
 

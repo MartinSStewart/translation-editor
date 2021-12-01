@@ -3,6 +3,7 @@ module TranslationParser exposing
     , Translation(..)
     , TranslationDeclaration
     , TranslationValue
+    , TranslationValue_
     , contentCodec
     , contentToString
     , getLanguageLongName
@@ -36,8 +37,12 @@ type alias TranslationDeclaration =
     { filePath : String
     , functionName : String
     , language : String
-    , translations : Dict (Nonempty String) (Result () { value : Nonempty Content, range : Range, isMarkdown : Maybe Expression })
+    , translations : Dict (Nonempty String) (Result () TranslationValue_)
     }
+
+
+type alias TranslationValue_ =
+    { value : Nonempty Content, range : Range, isMarkdown : Maybe Expression }
 
 
 contentToString : Nonempty Content -> String
@@ -456,7 +461,7 @@ isTranslationRecord translations =
 translationToDict :
     List String
     -> List Translation
-    -> Dict (Nonempty String) (Result () { value : Nonempty Content, range : Range })
+    -> Dict (Nonempty String) (Result () { value : Nonempty Content, range : Range, isMarkdown : Maybe Expression })
 translationToDict path translations =
     List.foldl
         (\translation dict ->
@@ -467,6 +472,7 @@ translationToDict path translations =
                         (Ok
                             { value = Node.value translationValue.value
                             , range = Node.range translationValue.value
+                            , isMarkdown = translationValue.isMarkdown
                             }
                         )
                         dict
