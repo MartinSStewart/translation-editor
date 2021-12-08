@@ -113,6 +113,7 @@ init url key =
       , windowHeight = 1080
       , navKey = key
       , state = state
+      , dummyChange = ()
       }
     , Cmd.batch
         [ Browser.Dom.getViewport
@@ -639,6 +640,9 @@ update msg model =
 
                 _ ->
                     ( model, Cmd.none )
+
+        DummyChange ->
+            ( model, Cmd.none )
 
 
 startDebounce : { a | changeCounter : Int } -> Cmd FrontendMsg

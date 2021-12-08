@@ -19,6 +19,7 @@ type alias FrontendModel =
     , windowHeight : Int
     , navKey : Browser.Navigation.Key
     , state : State
+    , dummyChange : ()
     }
 
 
@@ -135,6 +136,7 @@ type FrontendMsg
     | PressedResetTranslationGroup { path : Nonempty String }
     | PressedCloseSubmitSuccessful
     | PressedToggleOnlyMissingTranslations
+    | DummyChange
 
 
 type ToBackend
