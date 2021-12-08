@@ -184,6 +184,9 @@ initEditor parsingModel =
                 (\file -> ( file.path, { original = file.original } ))
                 parsingModel.parsedFiles
                 |> Dict.fromList
+
+        allLanguages =
+            List.map .language translations |> Set.fromList
     in
     ( Dict.foldl
         (\k v s -> updateChanges k v s |> Tuple.first)
@@ -197,8 +200,8 @@ initEditor parsingModel =
         , showOnlyMissingTranslations = False
         , pullRequestMessage = ""
         , name = ""
-        , hiddenLanguages = Set.empty
-        , allLanguages = List.map .language translations |> Set.fromList
+        , hiddenLanguages = Set.fromList [ "sv" ] |> Set.intersect allLanguages
+        , allLanguages = allLanguages
         , branch = parsingModel.branch
         }
         parsingModel.loadedChanges
