@@ -74,6 +74,15 @@ loadFromJsDecoder =
         (Json.Decode.field "value" (Json.Decode.nullable Json.Decode.string))
 
 
+initStart maybeBranch =
+    { personalAccessToken = ""
+    , pressedSubmit = False
+    , loginFailed = False
+    , cache = Nothing
+    , branch = maybeBranch
+    }
+
+
 init : Url -> Browser.Navigation.Key -> ( FrontendModel, Cmd FrontendMsg )
 init url key =
     let
@@ -88,24 +97,12 @@ init url key =
                     )
 
                 Just ( Nothing, maybeBranch ) ->
-                    ( Start
-                        { personalAccessToken = ""
-                        , pressedSubmit = False
-                        , loginFailed = False
-                        , cache = Nothing
-                        , branch = maybeBranch
-                        }
+                    ( Start (initStart maybeBranch)
                     , local_storage_request_load_to_js { key = authTokenLocalStorageKey }
                     )
 
                 Nothing ->
-                    ( Start
-                        { personalAccessToken = ""
-                        , pressedSubmit = False
-                        , loginFailed = False
-                        , cache = Nothing
-                        , branch = Nothing
-                        }
+                    ( Start (initStart Nothing)
                     , local_storage_request_load_to_js { key = authTokenLocalStorageKey }
                     )
     in
@@ -971,7 +968,13 @@ handleZipLoaded result loadingModel =
                     )
 
         Err error ->
-            ( LoadFailed error, Cmd.none )
+            case error of
+                -- This means the user's login has expired
+                Http.BadStatus 401 ->
+                    ( Start (initStart loadingModel.branch), Cmd.none )
+
+                _ ->
+                    ( LoadFailed error, Cmd.none )
 
 
 changesLocalStorageKey =
