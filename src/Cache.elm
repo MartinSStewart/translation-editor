@@ -6,7 +6,7 @@ import Dict as RegularDict
 import List.Nonempty exposing (Nonempty)
 import Murmur3
 import Serialize
-import TranslationParser exposing (Content, TranslationDeclaration, TranslationValue_)
+import TranslationParser exposing (TranslationDeclaration, TranslationValue_)
 
 
 type Error

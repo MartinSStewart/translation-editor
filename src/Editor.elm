@@ -9,14 +9,13 @@ import Element.Font
 import Element.Input
 import Element.Lazy
 import Elm.Pretty
-import Elm.Syntax.Expression exposing (Expression)
 import Elm.Syntax.Range exposing (Range)
 import Env
 import Github
 import Html
 import Html.Attributes
 import List.Extra as List
-import List.Nonempty exposing (Nonempty(..))
+import List.Nonempty exposing (Nonempty)
 import Pretty
 import Set exposing (Set)
 import TranslationParser exposing (Content(..), TranslationDeclaration, TranslationValue_)

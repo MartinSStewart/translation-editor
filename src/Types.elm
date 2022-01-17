@@ -136,7 +136,6 @@ type FrontendMsg
     | PressedResetTranslationGroup { path : Nonempty String }
     | PressedCloseSubmitSuccessful
     | PressedToggleOnlyMissingTranslations
-    | DummyChange
 
 
 type ToBackend

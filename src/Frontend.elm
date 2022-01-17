@@ -638,9 +638,6 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
-        DummyChange ->
-            ( model, Cmd.none )
-
 
 startDebounce : { a | changeCounter : Int } -> Cmd FrontendMsg
 startDebounce editorModel =

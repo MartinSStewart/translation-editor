@@ -191,10 +191,6 @@ type Content
     | Placeholder Expression
 
 
-type alias MarkdownData =
-    { placeholder : Expression, markdownFunction : Expression }
-
-
 contentCodec : Serialize.Codec DecodeError Content
 contentCodec =
     Serialize.customType
