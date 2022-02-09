@@ -2,7 +2,7 @@
 
 This is a webapp [hosted here](https://translations-editor.lamdera.app) that loads the insurello/app code, parses out all the translations, displays them as a list that you can edit, and creates a pull request for any changes you made.
 
-If you'd like to have a translator makes changes to a specific branch create a url that looks like this: https://translations-editor.lamdera.app/?branch=sign-box
+If you'd like to have a translator make changes to a specific branch create a url that looks like this: https://translations-editor.lamdera.app/?branch=sign-box
 
 ## Getting started
 
