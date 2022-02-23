@@ -7,7 +7,6 @@ import Element.Background
 import Element.Border
 import Element.Font
 import Element.Input
-import Element.Lazy
 import Elm.Pretty
 import Elm.Syntax.Range exposing (Range)
 import Env
@@ -349,6 +348,29 @@ view model editorModel =
                 Element.column
                     [ Element.width Element.fill
                     , Element.Background.color (Element.rgb 0.5 0.5 0.5)
+                    , Html.node "style"
+                        []
+                        [ Html.text """
+.text-input-label {
+    background-color: rgb(102, 68, 153);
+    width: 24px;
+    color: white;
+    padding: 8px 8px 8px 8px;
+    border-radius: 8px 0 0 8px;
+}
+
+.text-input {
+    width: 740px;
+    border-radius: 0 8px 8px 0;
+    border-width: 1px 1px 1px 0;
+    border-style: solid;
+    border-color: black;
+    margin: 0;
+}
+"""
+                        ]
+                        |> Element.html
+                        |> Element.behindContent
                     ]
                     [ headerView
                         editorModel.showOnlyMissingTranslations
@@ -718,12 +740,7 @@ translationInput translationData change translationGroup functionName filePath =
                     [ Html.Attributes.style "display" "flex"
                     ]
                     [ Html.div
-                        [ Html.Attributes.style "background-color" "purple"
-                        , Html.Attributes.style "width" "24px"
-                        , Html.Attributes.style "color" "white"
-                        , Html.Attributes.style "padding" "8px 8px 8px 8px"
-                        , Html.Attributes.style "border-radius" "8px 0 0 8px"
-                        ]
+                        [ Html.Attributes.class "text-input-label" ]
                         [ TranslationParser.getLanguageShortName
                             translationId.functionName
                             |> Maybe.withDefault ""
@@ -733,12 +750,7 @@ translationInput translationData change translationGroup functionName filePath =
                         [ Html.Events.onInput (TypedTranslation translationId)
                         , Html.Attributes.value
                             (Maybe.withDefault (TranslationParser.contentToString translation.value) change)
-                        , Html.Attributes.style "width" "740px"
-                        , Html.Attributes.style "border-radius" "0 8px 8px 0"
-                        , Html.Attributes.style "border-width" "1px 1px 1px 0"
-                        , Html.Attributes.style "border-style" "solid"
-                        , Html.Attributes.style "border-color" "black"
-                        , Html.Attributes.style "margin" "0"
+                        , Html.Attributes.class "text-input"
                         ]
                         []
                     ]
