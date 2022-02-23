@@ -712,6 +712,7 @@ translationInput translationData change translationGroup functionName filePath =
             Html.div
                 [ Html.Attributes.style "display" "flex"
                 , Html.Attributes.style "flex-direction" "column"
+                , Html.Attributes.style "padding" "0 0 8px 0"
                 ]
                 [ Html.div
                     [ Html.Attributes.style "display" "flex"
@@ -767,61 +768,6 @@ translationInput translationData change translationGroup functionName filePath =
                         Html.text ""
                 ]
 
-        --Element.column
-        --    [ Element.width Element.fill, Element.spacing 6, Element.Font.size 16 ]
-        --    [ Element.Input.multiline
-        --        [ Element.Border.roundEach { topLeft = 0, bottomLeft = 0, topRight = 4, bottomRight = 4 }
-        --        , Element.width <| Element.px 740
-        --        , Element.spacingXY 0 8
-        --        ]
-        --        { onChange = TypedTranslation translationId
-        --        , text = Maybe.withDefault (TranslationParser.contentToString translation.value) change
-        --        , placeholder = Nothing
-        --        , label =
-        --            Element.Input.labelLeft
-        --                [ Element.Background.color purple
-        --                , Element.Font.color white
-        --                , Element.width <| Element.px 40
-        --                , Element.height Element.fill
-        --                , Element.padding 8
-        --                , Element.Border.roundEach
-        --                    { topLeft = 4, bottomLeft = 4, topRight = 0, bottomRight = 0 }
-        --                ]
-        --                (Element.el
-        --                    [ Element.centerX, Element.centerY ]
-        --                    (Element.text
-        --                        (TranslationParser.getLanguageShortName
-        --                            translationId.functionName
-        --                            |> Maybe.withDefault ""
-        --                        )
-        --                    )
-        --                )
-        --        , spellcheck = True
-        --        }
-        --    , case change of
-        --        Just userInput ->
-        --            case parseInput translation.value userInput of
-        --                Ok _ ->
-        --                    Element.none
-        --
-        --                Err errors ->
-        --                    Element.paragraph
-        --                        [ Element.paddingEach { left = 4, right = 0, top = 0, bottom = 0 }
-        --                        , Element.Font.color errorColor
-        --                        ]
-        --                        [ Element.text
-        --                            (case List.Nonempty.head errors of
-        --                                PlaceholderMissing name ->
-        --                                    "{" ++ name ++ "} is missing"
-        --
-        --                                PlaceholderRepeated name ->
-        --                                    "{" ++ name ++ "} can only appear once"
-        --                            )
-        --                        ]
-        --
-        --        Nothing ->
-        --            Element.none
-        --    ]
         Just (Err ()) ->
             Html.text "Couldn't use translation, invalid format."
 
