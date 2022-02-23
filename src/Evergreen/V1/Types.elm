@@ -4,6 +4,7 @@ import AssocList
 import Browser
 import Browser.Navigation
 import Bytes
+import Evergreen.V1.Cache
 import Evergreen.V1.Github
 import Evergreen.V1.TranslationParser
 import Http
@@ -17,6 +18,8 @@ type alias StartModel =
     { personalAccessToken : String
     , pressedSubmit : Bool
     , loginFailed : Bool
+    , cache : Maybe Evergreen.V1.Cache.Cache
+    , branch : Maybe Evergreen.V1.Github.Branch
     }
 
 
@@ -25,6 +28,8 @@ type alias LoadingModel =
     , filesRemaining : List ( String, Url.Url )
     , directoriesRemaining : Set.Set String
     , fileContents : List ( String, String )
+    , cache : Maybe Evergreen.V1.Cache.Cache
+    , branch : Maybe Evergreen.V1.Github.Branch
     }
 
 
@@ -45,6 +50,8 @@ type alias ParsingModel =
             }
     , oauthToken : Evergreen.V1.Github.OAuthToken
     , loadedChanges : AssocList.Dict TranslationId String
+    , cache : Maybe Evergreen.V1.Cache.Cache
+    , branch : Evergreen.V1.Github.Branch
     }
 
 
@@ -69,13 +76,17 @@ type SubmitStatus
         }
 
 
+type IsMarkdown
+    = IsMarkdown
+    | IsPartiallyMarkdown
+    | IsPlainText
+
+
 type alias TranslationGroup =
     { path : List.Nonempty.Nonempty String
-    , ids :
-        List.Nonempty.Nonempty
-            { filePath : String
-            , functionName : String
-            }
+    , filePath : String
+    , functionNames : List.Nonempty.Nonempty String
+    , isMarkdown : IsMarkdown
     }
 
 
@@ -94,6 +105,7 @@ type alias EditorModel =
     , changeCounter : Int
     , showOnlyMissingTranslations : Bool
     , name : String
+    , branch : Evergreen.V1.Github.Branch
     , allLanguages : Set.Set String
     , groups : List TranslationGroup
     }
@@ -101,12 +113,13 @@ type alias EditorModel =
 
 type State
     = Start StartModel
-    | Authenticate
+    | Authenticate (Maybe Evergreen.V1.Cache.Cache) (Maybe Evergreen.V1.Github.Branch)
     | Loading LoadingModel
     | Parsing ParsingModel
     | Editor EditorModel
     | ParsingFailed
         { path : String
+        , branch : Evergreen.V1.Github.Branch
         }
     | LoadFailed Http.Error
 
@@ -116,6 +129,7 @@ type alias FrontendModel =
     , windowHeight : Int
     , navKey : Browser.Navigation.Key
     , state : State
+    , dummyChange : ()
     }
 
 
@@ -125,8 +139,7 @@ type alias BackendModel =
 
 type FrontendMsg
     = PressedLink Browser.UrlRequest
-    | UrlChanged Url.Url
-    | GotRepository Evergreen.V1.Github.OAuthToken (Result Http.Error (List ( String, String )))
+    | UrlChanged
     | TypedPersonalAccessToken String
     | PressedSubmitPersonalAccessToken
     | GotLocalStorageData
@@ -169,20 +182,14 @@ type FrontendMsg
 
 type ToBackend
     = AuthenticateRequest Evergreen.V1.Github.OAuthCode
-    | GetZipRequest Evergreen.V1.Github.OAuthToken
+    | GetZipRequest Evergreen.V1.Github.OAuthToken (Maybe Evergreen.V1.Github.Branch)
 
 
 type BackendMsg
     = GotAccessToken Lamdera.ClientId (Result Http.Error Evergreen.V1.Github.AccessTokenResponse)
-    | GotRepositoryBackend
-        (Result
-            Http.Error
-            { defaultBranch : String
-            }
-        )
-    | LoadedZipBackend Lamdera.ClientId (Result Http.Error Bytes.Bytes)
+    | LoadedZipBackend Lamdera.ClientId (Result Http.Error ( Evergreen.V1.Github.Branch, Bytes.Bytes ))
 
 
 type ToFrontend
     = AuthenticateResponse (Result Http.Error Evergreen.V1.Github.OAuthToken)
-    | GetZipResponse (Result Http.Error Bytes.Bytes)
+    | GetZipResponse (Result Http.Error ( Evergreen.V1.Github.Branch, Bytes.Bytes ))

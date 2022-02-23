@@ -1,6 +1,10 @@
 module Evergreen.V1.Github exposing (..)
 
 
+type Branch
+    = Branch String
+
+
 type OAuthToken
     = OAuthToken String
 
