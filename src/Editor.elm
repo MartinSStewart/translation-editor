@@ -709,12 +709,63 @@ translationInput translationData change translationGroup functionName filePath =
     in
     case getTranslation translationId translationData of
         Just (Ok ( _, translation )) ->
-            Html.input
-                [ Html.Events.onInput (TypedTranslation translationId)
-                , Html.Attributes.value
-                    (Maybe.withDefault (TranslationParser.contentToString translation.value) change)
+            Html.div
+                [ Html.Attributes.style "display" "flex"
+                , Html.Attributes.style "flex-direction" "column"
                 ]
-                []
+                [ Html.div
+                    [ Html.Attributes.style "display" "flex"
+                    ]
+                    [ Html.div
+                        [ Html.Attributes.style "background-color" "purple"
+                        , Html.Attributes.style "width" "24px"
+                        , Html.Attributes.style "color" "white"
+                        , Html.Attributes.style "padding" "8px 8px 8px 8px"
+                        , Html.Attributes.style "border-radius" "8px 0 0 8px"
+                        ]
+                        [ TranslationParser.getLanguageShortName
+                            translationId.functionName
+                            |> Maybe.withDefault ""
+                            |> Html.text
+                        ]
+                    , Html.textarea
+                        [ Html.Events.onInput (TypedTranslation translationId)
+                        , Html.Attributes.value
+                            (Maybe.withDefault (TranslationParser.contentToString translation.value) change)
+                        , Html.Attributes.style "width" "740px"
+                        , Html.Attributes.style "border-radius" "0 8px 8px 0"
+                        , Html.Attributes.style "border-width" "1px 1px 1px 0"
+                        , Html.Attributes.style "border-style" "solid"
+                        , Html.Attributes.style "border-color" "black"
+                        , Html.Attributes.style "margin" "0"
+                        ]
+                        []
+                    ]
+                , case change of
+                    Just userInput ->
+                        case parseInput translation.value userInput of
+                            Ok _ ->
+                                Html.text ""
+
+                            Err errors ->
+                                Html.div
+                                    [ Html.Attributes.style "color" "red"
+                                    , Html.Attributes.style "font-size" "16px"
+                                    , Html.Attributes.style "padding" "4px"
+                                    ]
+                                    [ Html.text
+                                        (case List.Nonempty.head errors of
+                                            PlaceholderMissing name ->
+                                                "{" ++ name ++ "} is missing"
+
+                                            PlaceholderRepeated name ->
+                                                "{" ++ name ++ "} can only appear once"
+                                        )
+                                    ]
+
+                    Nothing ->
+                        Html.text ""
+                ]
 
         --Element.column
         --    [ Element.width Element.fill, Element.spacing 6, Element.Font.size 16 ]
