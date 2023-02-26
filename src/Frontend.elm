@@ -29,6 +29,7 @@ import Task exposing (Task)
 import TranslationParser exposing (TranslationDeclaration)
 import Types exposing (..)
 import Url exposing (Url)
+import Url.Builder
 import Url.Parser
 import Url.Parser.Query
 import Zip
@@ -131,8 +132,8 @@ init url key =
     )
 
 
-parseFiles : ParsingModel -> ( State, Cmd FrontendMsg )
-parseFiles parsingModel =
+parseFiles : Browser.Navigation.Key -> ParsingModel -> ( State, Cmd FrontendMsg )
+parseFiles navigationKey parsingModel =
     case parsingModel.unparsedFiles of
         ( path, head ) :: rest ->
             ( Parsing { parsingModel | unparsedFiles = rest }
@@ -169,20 +170,22 @@ parseFiles parsingModel =
             )
 
         [] ->
-            initEditor parsingModel
+            initEditor navigationKey parsingModel
 
 
 initEditor :
-    { a
-        | parsedFiles : List { path : String, result : List TranslationDeclaration, original : String }
-        , oauthToken : Github.OAuthToken
-        , loadedChanges : Dict TranslationId String
-        , owner : Owner
-        , repoName : String
-        , branch : Github.Branch
-    }
+    Browser.Navigation.Key
+    ->
+        { a
+            | parsedFiles : List { path : String, result : List TranslationDeclaration, original : String }
+            , oauthToken : Github.OAuthToken
+            , loadedChanges : Dict TranslationId String
+            , owner : Owner
+            , repoName : String
+            , branch : Github.Branch
+        }
     -> ( State, Cmd msg )
-initEditor parsingModel =
+initEditor navigationKey parsingModel =
     let
         translations : List TranslationDeclaration
         translations =
@@ -218,19 +221,57 @@ initEditor parsingModel =
         }
         parsingModel.loadedChanges
         |> Editor
-    , local_storage_save_to_js
-        { key = localStorageCacheKey
-        , value =
-            parsingModel.parsedFiles
-                |> List.map
-                    (\parsedFiles ->
-                        { originalCode = parsedFiles.original, translations = parsedFiles.result }
-                    )
-                |> Cache.cacheFiles
-                |> Serialize.encodeToJson Cache.codec
-                |> Json.Encode.encode 0
-        }
+    , Cmd.batch
+        [ local_storage_save_to_js
+            { key = localStorageCacheKey
+            , value =
+                parsingModel.parsedFiles
+                    |> List.map
+                        (\parsedFiles ->
+                            { originalCode = parsedFiles.original, translations = parsedFiles.result }
+                        )
+                    |> Cache.cacheFiles
+                    |> Serialize.encodeToJson Cache.codec
+                    |> Json.Encode.encode 0
+            }
+        , Browser.Navigation.pushUrl
+            navigationKey
+            (encodeRoute
+                { owner = Just parsingModel.owner
+                , repoName = Just parsingModel.repoName
+                , branch = Just parsingModel.branch
+                }
+            )
+        ]
     )
+
+
+encodeRoute : { owner : Maybe Owner, repoName : Maybe String, branch : Maybe Github.Branch } -> String
+encodeRoute routeData =
+    Url.Builder.absolute
+        []
+        ((case routeData.owner of
+            Just owner ->
+                [ Url.Builder.string ownerParameterName (Github.ownerToString owner) ]
+
+            Nothing ->
+                []
+         )
+            ++ (case routeData.repoName of
+                    Just repoName ->
+                        [ Url.Builder.string repoNameParameterName repoName ]
+
+                    Nothing ->
+                        []
+               )
+            ++ (case routeData.branch of
+                    Just branch ->
+                        [ Url.Builder.string branchParameterName (Github.branchToString branch) ]
+
+                    Nothing ->
+                        []
+               )
+        )
 
 
 localStorageCacheKey : String
@@ -449,6 +490,7 @@ update msg model =
                     case translation.result of
                         Ok parsedFile ->
                             parseFiles
+                                model.navKey
                                 { parsingModel
                                     | parsedFiles =
                                         { path = translation.path
@@ -1014,15 +1056,15 @@ updateFromBackend msg model =
         GetZipResponse result ->
             case model.state of
                 Loading loadingModel ->
-                    handleZipLoaded result loadingModel
+                    handleZipLoaded model.navKey result loadingModel
                         |> Tuple.mapFirst (\a -> { model | state = a })
 
                 _ ->
                     ( model, Cmd.none )
 
 
-handleZipLoaded : Result Http.Error ( Github.Branch, Bytes ) -> LoadingModel -> ( State, Cmd FrontendMsg )
-handleZipLoaded result loadingModel =
+handleZipLoaded : Browser.Navigation.Key -> Result Http.Error ( Github.Branch, Bytes ) -> LoadingModel -> ( State, Cmd FrontendMsg )
+handleZipLoaded navigationKey result loadingModel =
     case result of
         Ok ( branch, zipBytes ) ->
             case Zip.fromBytes zipBytes of
@@ -1039,7 +1081,11 @@ handleZipLoaded result loadingModel =
                                                 |> List.drop 1
                                                 |> String.join "/"
                                     in
-                                    if String.endsWith ".elm" path && not (String.startsWith "tests" path) then
+                                    if
+                                        String.endsWith ".elm" path
+                                            && not (String.startsWith "tests" path)
+                                            && not (String.startsWith "src/Evergreen/" path)
+                                    then
                                         case Zip.Entry.toString entry of
                                             Ok contents ->
                                                 Just ( path, contents )
@@ -1053,6 +1099,7 @@ handleZipLoaded result loadingModel =
                                 (Zip.entries zip)
                     in
                     parseFiles
+                        navigationKey
                         { unparsedFiles = elmModules
                         , parsedFiles = []
                         , oauthToken = loadingModel.oauthToken
@@ -1120,10 +1167,22 @@ parseRoute =
             }
         )
         (Url.Parser.Query.string "code" |> Url.Parser.Query.map (Maybe.map Github.oauthCode))
-        (Url.Parser.Query.string "owner")
-        (Url.Parser.Query.string "repoName")
-        (Url.Parser.Query.string "branch" |> Url.Parser.Query.map (Maybe.map Github.branch))
+        (Url.Parser.Query.string ownerParameterName)
+        (Url.Parser.Query.string repoNameParameterName)
+        (Url.Parser.Query.string branchParameterName |> Url.Parser.Query.map (Maybe.map Github.branch))
         |> Url.Parser.query
+
+
+ownerParameterName =
+    "owner"
+
+
+repoNameParameterName =
+    "repo-name"
+
+
+branchParameterName =
+    "branch"
 
 
 view : FrontendModel -> Document FrontendMsg

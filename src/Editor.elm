@@ -245,19 +245,19 @@ noTranslationsView owner repoName =
             ]
         , Element.paragraph [] [ Element.text "Translations must match this format:" ]
         , """myTranslationsEnglish =
-        { showName = \\name -> "Hi my name is " ++ name ++ "!"
-        , login = "Login"
-        , yes = "Yes"
-        , email = \\email -> "Your email is " ++ Email.toString email ++ "."
-        }
-    
-    -- Function must contain a language in the name
-    myTranslationsSwedish =
-        { showName = \\name -> "Hej jag heter " ++ name ++ "!"
-        , login = "Logga in"
-        , yes = "Ja"
-        , email = \\email -> "Din e-post är " ++ Email.toString email ++ "."
-        }
+    { showName = \\name -> "Hi my name is " ++ name ++ "!"
+    , login = "Login"
+    , yes = "Yes"
+    , email = \\email -> "Your email is " ++ Email.toString email ++ "."
+    }
+
+-- Function name must contain a language
+myTranslationsSwedish =
+    { showName = \\name -> "Hej jag heter " ++ name ++ "!"
+    , login = "Logga in"
+    , yes = "Ja"
+    , email = \\email -> "Din e-post är " ++ Email.toString email ++ "."
+    }
     """
             |> Html.text
             |> List.singleton
