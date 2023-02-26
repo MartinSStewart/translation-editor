@@ -10,7 +10,7 @@ import Element.Input
 import Elm.Pretty
 import Elm.Syntax.Range exposing (Range)
 import Env
-import Github
+import Github exposing (Owner)
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
@@ -224,11 +224,11 @@ changesSummaryView changes =
         |> Element.column []
 
 
-noTranslationsView : Element msg
-noTranslationsView =
+noTranslationsView : Owner -> String -> Element msg
+noTranslationsView owner repoName =
     let
         url =
-            Github.ownerToString Env.owner ++ "/" ++ Env.repo
+            Github.ownerToString owner ++ "/" ++ repoName
     in
     Element.column
         [ Element.centerX
@@ -340,7 +340,7 @@ hasUnfinishedTranslations group editorModel =
 view : Model -> EditorModel -> Element FrontendMsg
 view model editorModel =
     if List.isEmpty editorModel.translations then
-        noTranslationsView
+        noTranslationsView editorModel.owner editorModel.repoName
 
     else
         case editorModel.submitStatus of

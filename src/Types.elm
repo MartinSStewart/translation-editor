@@ -5,7 +5,7 @@ import Browser exposing (UrlRequest)
 import Browser.Navigation
 import Bytes exposing (Bytes)
 import Cache exposing (Cache)
-import Github exposing (AccessTokenResponse, Branch, OAuthCode, OAuthToken)
+import Github exposing (AccessTokenResponse, Branch, OAuthCode, OAuthToken, Owner)
 import Http
 import Lamdera exposing (ClientId)
 import List.Nonempty exposing (Nonempty)
@@ -25,7 +25,7 @@ type alias FrontendModel =
 
 type State
     = Start StartModel
-    | Authenticate (Maybe Cache) (Maybe Branch)
+    | Authenticate { owner : Owner, repoName : String, cache : Maybe Cache, branch : Maybe Branch }
     | Loading LoadingModel
     | Parsing ParsingModel
     | Editor EditorModel
@@ -39,6 +39,8 @@ type alias LoadingModel =
     , directoriesRemaining : Set String
     , fileContents : List ( String, String )
     , cache : Maybe Cache
+    , owner : Owner
+    , repoName : String
     , branch : Maybe Branch
     }
 
@@ -49,6 +51,8 @@ type alias ParsingModel =
     , oauthToken : OAuthToken
     , loadedChanges : Dict TranslationId String
     , cache : Maybe Cache
+    , owner : Owner
+    , repoName : String
     , branch : Branch
     }
 
@@ -78,6 +82,8 @@ type alias EditorModel =
     , changeCounter : Int
     , showOnlyMissingTranslations : Bool
     , name : String
+    , owner : Owner
+    , repoName : String
     , branch : Branch
 
     -- These fields can be derived from translations but we avoid that for performance
@@ -107,6 +113,7 @@ type alias StartModel =
     , pressedSubmit : Bool
     , loginFailed : Bool
     , cache : Maybe Cache
+    , githubUrl : String
     , branch : Maybe Branch
     }
 
@@ -136,11 +143,12 @@ type FrontendMsg
     | PressedResetTranslationGroup { path : Nonempty String }
     | PressedCloseSubmitSuccessful
     | PressedToggleOnlyMissingTranslations
+    | TypedGithubUrl String
 
 
 type ToBackend
     = AuthenticateRequest OAuthCode
-    | GetZipRequest OAuthToken (Maybe Branch)
+    | GetZipRequest { owner : Owner, repoName : String, token : OAuthToken, branch : Maybe Branch }
 
 
 type BackendMsg

@@ -28,21 +28,6 @@ clientId =
     Github.clientId clientId_
 
 
-owner_ : String
-owner_ =
-    "MartinSStewart"
-
-
-owner : Github.Owner
-owner =
-    Github.owner owner_
-
-
-repo : String
-repo =
-    "translation-test"
-
-
 isProduction_ : String
 isProduction_ =
     "false"

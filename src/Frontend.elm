@@ -13,7 +13,7 @@ import Element exposing (Element)
 import Element.Font
 import Element.Input
 import Env
-import Github exposing (OAuthCode)
+import Github exposing (Branch, OAuthCode, Owner)
 import Http
 import Json.Decode
 import Json.Encode
@@ -24,7 +24,7 @@ import Murmur3
 import Process
 import Serialize
 import Set
-import String.Nonempty
+import String.Nonempty exposing (NonemptyString)
 import Task exposing (Task)
 import TranslationParser exposing (TranslationDeclaration)
 import Types exposing (..)
@@ -74,12 +74,15 @@ loadFromJsDecoder =
         (Json.Decode.field "value" (Json.Decode.nullable Json.Decode.string))
 
 
-initStart maybeBranch =
+initStart : { a | owner : Maybe Owner, repoName : Maybe String, branch : Maybe Github.Branch } -> StartModel
+initStart routeData =
     { personalAccessToken = ""
     , pressedSubmit = False
     , loginFailed = False
     , cache = Nothing
-    , branch = maybeBranch
+    , githubUrl =
+        Maybe.map2 ownerAndRepoNameToUrl routeData.owner routeData.repoName |> Maybe.withDefault ""
+    , branch = routeData.branch
     }
 
 
@@ -88,21 +91,28 @@ init url key =
     let
         ( state, cmd ) =
             case Url.Parser.parse parseRoute url of
-                Just ( Just token, maybeBranch ) ->
-                    ( Authenticate Nothing maybeBranch
-                    , Cmd.batch
-                        [ Browser.Navigation.replaceUrl key Env.domain
-                        , Lamdera.sendToBackend (AuthenticateRequest token)
-                        ]
-                    )
+                Just routeData ->
+                    case ( routeData.code, routeData.owner, routeData.repoName ) of
+                        ( Just token, Just owner, Just repoName ) ->
+                            ( Authenticate
+                                { cache = Nothing
+                                , owner = owner
+                                , repoName = repoName
+                                , branch = routeData.branch
+                                }
+                            , Cmd.batch
+                                [ Browser.Navigation.replaceUrl key Env.domain
+                                , Lamdera.sendToBackend (AuthenticateRequest token)
+                                ]
+                            )
 
-                Just ( Nothing, maybeBranch ) ->
-                    ( Start (initStart maybeBranch)
-                    , local_storage_request_load_to_js { key = authTokenLocalStorageKey }
-                    )
+                        _ ->
+                            ( Start (initStart routeData)
+                            , local_storage_request_load_to_js { key = authTokenLocalStorageKey }
+                            )
 
                 Nothing ->
-                    ( Start (initStart Nothing)
+                    ( Start (initStart { owner = Nothing, repoName = Nothing, branch = Nothing })
                     , local_storage_request_load_to_js { key = authTokenLocalStorageKey }
                     )
     in
@@ -167,6 +177,8 @@ initEditor :
         | parsedFiles : List { path : String, result : List TranslationDeclaration, original : String }
         , oauthToken : Github.OAuthToken
         , loadedChanges : Dict TranslationId String
+        , owner : Owner
+        , repoName : String
         , branch : Github.Branch
     }
     -> ( State, Cmd msg )
@@ -200,6 +212,8 @@ initEditor parsingModel =
         , name = ""
         , hiddenLanguages = Set.fromList [ "sv" ] |> Set.intersect allLanguages
         , allLanguages = allLanguages
+        , owner = parsingModel.owner
+        , repoName = parsingModel.repoName
         , branch = parsingModel.branch
         }
         parsingModel.loadedChanges
@@ -222,6 +236,41 @@ initEditor parsingModel =
 localStorageCacheKey : String
 localStorageCacheKey =
     "cacheKey"
+
+
+validateGithubUrl : String -> Maybe ( Owner, String )
+validateGithubUrl githubUrl =
+    case String.trim githubUrl |> Url.fromString of
+        Just url ->
+            case String.split "/" url.path of
+                "" :: owner :: repo :: _ ->
+                    Maybe.map2 Tuple.pair (validateOwner owner) (validateRepoName repo)
+
+                _ ->
+                    Nothing
+
+        Nothing ->
+            Nothing
+
+
+validateOwner : String -> Maybe Owner
+validateOwner ownerText =
+    case String.trim ownerText of
+        "" ->
+            Nothing
+
+        text ->
+            Just (Github.owner text)
+
+
+validateRepoName : String -> Maybe String
+validateRepoName repoName =
+    case String.trim repoName of
+        "" ->
+            Nothing
+
+        text ->
+            Just text
 
 
 update : FrontendMsg -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
@@ -255,8 +304,12 @@ update msg model =
         PressedSubmitPersonalAccessToken ->
             case model.state of
                 Start startModel ->
-                    case String.Nonempty.fromString startModel.personalAccessToken of
-                        Just token ->
+                    case
+                        ( validateGithubUrl startModel.githubUrl
+                        , String.Nonempty.fromString startModel.personalAccessToken
+                        )
+                    of
+                        ( Just ( owner, repoName ), Just token ) ->
                             let
                                 authToken =
                                     String.Nonempty.toString token |> Github.oauthToken
@@ -269,15 +322,24 @@ update msg model =
                                         , oauthToken = authToken
                                         , fileContents = []
                                         , cache = Nothing
+                                        , owner = owner
+                                        , repoName = repoName
                                         , branch = startModel.branch
                                         }
                               }
                             , Cmd.batch
-                                [ Lamdera.sendToBackend (GetZipRequest authToken startModel.branch)
+                                [ Lamdera.sendToBackend
+                                    (GetZipRequest
+                                        { owner = owner
+                                        , repoName = repoName
+                                        , token = authToken
+                                        , branch = startModel.branch
+                                        }
+                                    )
                                 ]
                             )
 
-                        Nothing ->
+                        _ ->
                             ( { model | state = Start { startModel | pressedSubmit = True } }
                             , Cmd.none
                             )
@@ -289,7 +351,18 @@ update msg model =
             if key == authTokenLocalStorageKey then
                 case ( model.state, value ) of
                     ( Start startModel, Just oauthToken ) ->
-                        startLoading (Github.oauthToken oauthToken) startModel.cache startModel.branch model
+                        case validateGithubUrl startModel.githubUrl of
+                            Just ( owner, repoName ) ->
+                                startLoading
+                                    (Github.oauthToken oauthToken)
+                                    startModel.cache
+                                    owner
+                                    repoName
+                                    startModel.branch
+                                    model
+
+                            Nothing ->
+                                ( { model | state = Start startModel }, Cmd.none )
 
                     _ ->
                         ( model, Cmd.none )
@@ -309,8 +382,13 @@ update msg model =
                                             Start startModel ->
                                                 Start { startModel | cache = Just cache }
 
-                                            Authenticate _ branch ->
-                                                Authenticate (Just cache) branch
+                                            Authenticate authenticate ->
+                                                Authenticate
+                                                    { cache = Just cache
+                                                    , owner = authenticate.owner
+                                                    , repoName = authenticate.repoName
+                                                    , branch = authenticate.branch
+                                                    }
 
                                             Loading loadingModel ->
                                                 Loading { loadingModel | cache = Just cache }
@@ -523,6 +601,8 @@ update msg model =
                             ( { model | state = Editor { editor | submitStatus = Submitting } }
                             , createPullRequest
                                 editor.oauthToken
+                                editor.owner
+                                editor.repoName
                                 editor.branch
                                 (Github.branch ("edit-" ++ hash))
                                 changes
@@ -638,6 +718,16 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
+        TypedGithubUrl text ->
+            case model.state of
+                Start startModel ->
+                    ( { model | state = Start { startModel | githubUrl = text } }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
 
 startDebounce : { a | changeCounter : Int } -> Cmd FrontendMsg
 startDebounce editorModel =
@@ -690,8 +780,15 @@ translationIdCodec =
         |> Serialize.finishRecord
 
 
-startLoading : Github.OAuthToken -> Maybe Cache -> Maybe Github.Branch -> FrontendModel -> ( FrontendModel, Cmd frontendMsg )
-startLoading oauthToken maybeCache branch model =
+startLoading :
+    Github.OAuthToken
+    -> Maybe Cache
+    -> Owner
+    -> String
+    -> Maybe Github.Branch
+    -> FrontendModel
+    -> ( FrontendModel, Cmd frontendMsg )
+startLoading oauthToken maybeCache owner repoName branch model =
     ( { model
         | state =
             Loading
@@ -700,10 +797,12 @@ startLoading oauthToken maybeCache branch model =
                 , oauthToken = oauthToken
                 , fileContents = []
                 , cache = maybeCache
+                , owner = owner
+                , repoName = repoName
                 , branch = branch
                 }
       }
-    , Lamdera.sendToBackend (GetZipRequest oauthToken branch)
+    , Lamdera.sendToBackend (GetZipRequest { owner = owner, repoName = repoName, token = oauthToken, branch = branch })
     )
 
 
@@ -735,20 +834,22 @@ updateChanges translationId newText editorModel =
 
 createPullRequest :
     Github.OAuthToken
+    -> Owner
+    -> String
     -> Github.Branch
     -> Github.Branch
     -> Nonempty { path : String, content : String }
     -> String
     -> Task ( String, Http.Error ) { apiUrl : String, htmlUrl : String }
-createPullRequest token targetBranch newBranch changes message =
-    retryGetBranch token 2 { repo = Env.repo, owner = Env.owner } targetBranch
+createPullRequest token owner repoName targetBranch newBranch changes message =
+    retryGetBranch token 2 { repo = repoName, owner = owner } targetBranch
         |> Task.mapError (Tuple.pair "getBranch")
         |> Task.andThen
             (\commitSha ->
                 Github.getCommit
                     { authToken = token
-                    , repo = Env.repo
-                    , owner = Env.owner
+                    , repo = repoName
+                    , owner = owner
                     , sha = commitSha
                     }
                     |> Task.mapError (Tuple.pair "getCommit")
@@ -757,8 +858,8 @@ createPullRequest token targetBranch newBranch changes message =
                             Task.map2 (\_ a -> a)
                                 (Github.createBranch
                                     { authToken = token
-                                    , repo = Env.repo
-                                    , owner = Env.owner
+                                    , repo = repoName
+                                    , owner = owner
                                     , branchName = newBranch
                                     , sha = commitSha
                                     }
@@ -766,8 +867,8 @@ createPullRequest token targetBranch newBranch changes message =
                                 )
                                 (Github.createTree
                                     { authToken = token
-                                    , owner = Env.owner
-                                    , repo = Env.repo
+                                    , owner = owner
+                                    , repo = repoName
                                     , treeNodes = changes
                                     , baseTree = Just treeSha
                                     }
@@ -776,8 +877,8 @@ createPullRequest token targetBranch newBranch changes message =
                                         (\tree ->
                                             Github.createCommit
                                                 { authToken = token
-                                                , repo = Env.repo
-                                                , owner = Env.owner
+                                                , repo = repoName
+                                                , owner = owner
                                                 , message = "Edit translations"
                                                 , tree = tree.treeSha
                                                 , parents = [ commitSha ]
@@ -791,8 +892,8 @@ createPullRequest token targetBranch newBranch changes message =
             (\commitSha ->
                 Github.updateBranch
                     { authToken = token
-                    , owner = Env.owner
-                    , repo = Env.repo
+                    , owner = owner
+                    , repo = repoName
                     , branchName = newBranch
                     , sha = commitSha
                     , force = False
@@ -803,9 +904,9 @@ createPullRequest token targetBranch newBranch changes message =
             (\_ ->
                 Github.createPullRequest
                     { authToken = token
-                    , sourceBranchOwner = Env.owner
-                    , destinationOwner = Env.owner
-                    , destinationRepo = Env.repo
+                    , sourceBranchOwner = owner
+                    , destinationOwner = owner
+                    , destinationRepo = repoName
                     , destinationBranch = targetBranch
                     , sourceBranch = newBranch
                     , title = "Edit translations"
@@ -871,15 +972,26 @@ authTokenLocalStorageKey =
     "data"
 
 
+ownerAndRepoNameToUrl : Owner -> String -> String
+ownerAndRepoNameToUrl owner repoName =
+    "https://github.com/" ++ Github.ownerToString owner ++ "/" ++ repoName
+
+
 updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
 updateFromBackend msg model =
     case msg of
         AuthenticateResponse result ->
             case model.state of
-                Authenticate maybeCache maybeBranch ->
+                Authenticate authenticate ->
                     case result of
                         Ok oauthToken ->
-                            startLoading oauthToken maybeCache maybeBranch model
+                            startLoading
+                                oauthToken
+                                authenticate.cache
+                                authenticate.owner
+                                authenticate.repoName
+                                authenticate.branch
+                                model
 
                         Err _ ->
                             ( { model
@@ -888,8 +1000,9 @@ updateFromBackend msg model =
                                         { personalAccessToken = ""
                                         , pressedSubmit = False
                                         , loginFailed = True
-                                        , cache = maybeCache
-                                        , branch = maybeBranch
+                                        , cache = authenticate.cache
+                                        , githubUrl = ownerAndRepoNameToUrl authenticate.owner authenticate.repoName
+                                        , branch = authenticate.branch
                                         }
                               }
                             , Cmd.none
@@ -945,6 +1058,8 @@ handleZipLoaded result loadingModel =
                         , oauthToken = loadingModel.oauthToken
                         , loadedChanges = Dict.empty
                         , cache = loadingModel.cache
+                        , owner = loadingModel.owner
+                        , repoName = loadingModel.repoName
                         , branch = branch
                         }
                         |> Tuple.mapSecond
@@ -968,7 +1083,15 @@ handleZipLoaded result loadingModel =
             case error of
                 -- This means the user's login has expired
                 Http.BadStatus 401 ->
-                    ( Start (initStart loadingModel.branch), Cmd.none )
+                    ( Start
+                        (initStart
+                            { owner = Just loadingModel.owner
+                            , repoName = Just loadingModel.repoName
+                            , branch = loadingModel.branch
+                            }
+                        )
+                    , Cmd.none
+                    )
 
                 _ ->
                     ( LoadFailed error, Cmd.none )
@@ -978,10 +1101,27 @@ changesLocalStorageKey =
     "changes"
 
 
-parseRoute : Url.Parser.Parser (( Maybe OAuthCode, Maybe Github.Branch ) -> a) a
+type alias RouteData =
+    { code : Maybe OAuthCode
+    , owner : Maybe Owner
+    , repoName : Maybe String
+    , branch : Maybe Github.Branch
+    }
+
+
+parseRoute : Url.Parser.Parser (RouteData -> a) a
 parseRoute =
-    Url.Parser.Query.map2 Tuple.pair
+    Url.Parser.Query.map4
+        (\code owner repoName branch ->
+            { code = code
+            , owner = Maybe.andThen validateOwner owner
+            , repoName = Maybe.andThen validateRepoName repoName
+            , branch = branch
+            }
+        )
         (Url.Parser.Query.string "code" |> Url.Parser.Query.map (Maybe.map Github.oauthCode))
+        (Url.Parser.Query.string "owner")
+        (Url.Parser.Query.string "repoName")
         (Url.Parser.Query.string "branch" |> Url.Parser.Query.map (Maybe.map Github.branch))
         |> Url.Parser.query
 
@@ -1056,7 +1196,7 @@ view model =
                             , Element.padding 16
                             ]
 
-                Authenticate _ _ ->
+                Authenticate _ ->
                     Element.text "Authenticating..."
                         |> Element.el [ Element.padding 16 ]
             )
@@ -1172,22 +1312,50 @@ startView model =
                     ]
             ]
         , Element.column
-            [ Element.spacing 8, Element.width Element.fill ]
-            [ Element.Input.text
-                []
-                { onChange = TypedPersonalAccessToken
-                , text = model.personalAccessToken
-                , placeholder = Nothing
-                , label = Element.Input.labelAbove [] (Element.text "Or use a personal access token")
-                }
-            , case ( String.Nonempty.fromString model.personalAccessToken, model.pressedSubmit ) of
-                ( Nothing, True ) ->
-                    Element.paragraph
-                        [ Element.Font.color errorColor ]
-                        [ Element.text "Enter your personal access token first" ]
+            [ Element.spacing 24, Element.width Element.fill ]
+            [ Element.column
+                [ Element.spacing 8, Element.width Element.fill ]
+                [ Element.Input.text
+                    []
+                    { onChange = TypedPersonalAccessToken
+                    , text = model.personalAccessToken
+                    , placeholder = Nothing
+                    , label = Element.Input.labelAbove [] (Element.text "Or use a personal access token")
+                    }
+                , case ( String.Nonempty.fromString model.personalAccessToken, model.pressedSubmit ) of
+                    ( Nothing, True ) ->
+                        Element.paragraph
+                            [ Element.Font.color errorColor ]
+                            [ Element.text "Enter your personal access token first" ]
 
-                _ ->
-                    Element.none
+                    _ ->
+                        Element.none
+                ]
+            , Element.column
+                [ Element.spacing 8, Element.width Element.fill ]
+                [ Element.Input.text
+                    []
+                    { onChange = TypedGithubUrl
+                    , text = model.githubUrl
+                    , placeholder = Nothing
+                    , label =
+                        Element.Input.labelAbove
+                            []
+                            (Element.row
+                                []
+                                [ Element.text "Github repo url (i.e. https://github.com/owner/repo-name)"
+                                ]
+                            )
+                    }
+                , case ( validateGithubUrl model.githubUrl, model.pressedSubmit ) of
+                    ( Nothing, True ) ->
+                        Element.paragraph
+                            [ Element.Font.color errorColor ]
+                            [ Element.text "Choose which repo to translate" ]
+
+                    _ ->
+                        Element.none
+                ]
             , Element.Input.button
                 (Element.width Element.fill :: Editor.buttonAttributes)
                 { onPress = Just PressedSubmitPersonalAccessToken, label = Element.text "Submit token" }
