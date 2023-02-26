@@ -1,0 +1,1 @@
+Favicon found here: https://icons8.com/icon/78888/translation
