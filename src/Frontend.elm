@@ -10,6 +10,8 @@ import Cache exposing (Cache)
 import Dict as RegularDict
 import Editor
 import Element exposing (Element)
+import Element.Background
+import Element.Border
 import Element.Font
 import Element.Input
 import Env
@@ -1339,86 +1341,111 @@ httpToString error =
 startView : StartModel -> Element FrontendMsg
 startView model =
     Element.column
-        [ Element.spacing 32, Element.centerX, Element.centerY ]
-        [ Element.el [ Element.centerX, Element.Font.size 30 ] (Element.text "Elm Translation Editor")
-        , if model.loginFailed then
-            Element.el [ Element.Font.color errorColor ] (Element.text "Failed to login")
-
-          else
-            Element.none
-        , Element.column
-            [ Element.spacing 8, Element.width Element.fill ]
-            [ if Env.isProduction then
-                Element.link
-                    (Element.width Element.fill :: Editor.buttonAttributes)
-                    { url =
-                        Github.oauthLink
-                            { clientId = Env.clientId
-                            , redirectUri = Just Env.domain
-                            , scopes = [ Github.RepoScope ]
-                            , state = Nothing
-                            }
-                    , label = Element.text "Login with OAuth"
-                    }
-
-              else
+        [ Element.spacing 64, Element.centerX, Element.centerY ]
+        [ Element.column
+            [ Element.spacing 32, Element.width Element.fill ]
+            [ Element.el [ Element.centerX, Element.Font.size 30 ] (Element.text "Elm Translation Editor")
+            , githubUrlView model
+            ]
+        , case validateGithubUrl model.githubUrl of
+            Just ( owner, repoName ) ->
                 Element.column
-                    [ Element.spacing 8, Element.width Element.fill ]
-                    [ Element.el
-                        (Element.width Element.fill :: Element.Font.color (Element.rgb 0.5 0.5 0.5) :: Editor.buttonAttributes)
-                        (Element.text "Login with OAuth")
-                    , Element.text "Disabled when running locally"
-                    ]
-            ]
-        , Element.column
-            [ Element.spacing 24, Element.width Element.fill ]
-            [ Element.column
-                [ Element.spacing 8, Element.width Element.fill ]
-                [ Element.Input.text
-                    []
-                    { onChange = TypedPersonalAccessToken
-                    , text = model.personalAccessToken
-                    , placeholder = Nothing
-                    , label = Element.Input.labelAbove [] (Element.text "Or use a personal access token")
-                    }
-                , case ( String.Nonempty.fromString model.personalAccessToken, model.pressedSubmit ) of
-                    ( Nothing, True ) ->
-                        Element.paragraph
-                            [ Element.Font.color errorColor ]
-                            [ Element.text "Enter your personal access token first" ]
+                    [ Element.spacing 32, Element.width Element.fill ]
+                    [ if model.loginFailed then
+                        Element.el [ Element.Font.color errorColor ] (Element.text "Failed to login")
 
-                    _ ->
+                      else
                         Element.none
-                ]
-            , Element.column
-                [ Element.spacing 8, Element.width Element.fill ]
-                [ Element.Input.text
-                    []
-                    { onChange = TypedGithubUrl
-                    , text = model.githubUrl
-                    , placeholder = Nothing
-                    , label =
-                        Element.Input.labelAbove
-                            []
-                            (Element.row
-                                []
-                                [ Element.text "Github repo url (i.e. https://github.com/owner/repo-name)"
+                    , Element.column
+                        [ Element.spacing 8, Element.width Element.fill ]
+                        [ if Env.isProduction then
+                            Element.link
+                                (Element.width Element.fill :: Editor.buttonAttributes)
+                                { url =
+                                    Github.oauthLink
+                                        { clientId = Env.clientId
+                                        , redirectUri = ownerAndRepoNameToUrl owner repoName |> Just
+                                        , scopes = [ Github.RepoScope ]
+                                        , state = Nothing
+                                        }
+                                , label = Element.text "Login with OAuth"
+                                }
+
+                          else
+                            Element.column
+                                [ Element.spacing 8, Element.width Element.fill ]
+                                [ Element.el
+                                    (Element.width Element.fill :: Element.Font.color (Element.rgb 0.5 0.5 0.5) :: Editor.buttonAttributes)
+                                    (Element.text "Login with OAuth")
+                                , Element.text "Disabled when running locally"
                                 ]
-                            )
-                    }
-                , case ( validateGithubUrl model.githubUrl, model.pressedSubmit ) of
-                    ( Nothing, True ) ->
-                        Element.paragraph
-                            [ Element.Font.color errorColor ]
-                            [ Element.text "Choose which repo to translate" ]
+                        ]
+                    , Element.column
+                        [ Element.width Element.fill, Element.spacing 8 ]
+                        [ Element.row
+                            [ Element.width Element.fill ]
+                            [ Element.Input.text
+                                []
+                                { onChange = TypedPersonalAccessToken
+                                , text = model.personalAccessToken
+                                , placeholder = Nothing
+                                , label = Element.Input.labelAbove [] (Element.text "Or use a GitHub personal access token")
+                                }
+                            , Element.Input.button
+                                [ Element.Border.width 1
+                                , Element.Border.color (Element.rgb 0 0 0)
+                                , Element.paddingXY 12 7
+                                , Element.Border.roundEach { topLeft = 0, bottomLeft = 0, topRight = 4, bottomRight = 4 }
+                                , Element.Background.color (Element.rgb 0.9 0.9 0.9)
+                                , Element.Font.center
+                                , Element.height (Element.px 45)
+                                , Element.alignBottom
+                                ]
+                                { onPress = Just PressedSubmitPersonalAccessToken
+                                , label = Element.text "Submit token"
+                                }
+                            ]
+                        , case ( String.Nonempty.fromString model.personalAccessToken, model.pressedSubmit ) of
+                            ( Nothing, True ) ->
+                                Element.paragraph
+                                    [ Element.Font.color errorColor ]
+                                    [ Element.text "Enter your personal access token first" ]
 
-                    _ ->
-                        Element.none
-                ]
-            , Element.Input.button
-                (Element.width Element.fill :: Editor.buttonAttributes)
-                { onPress = Just PressedSubmitPersonalAccessToken, label = Element.text "Submit token" }
-            ]
+                            _ ->
+                                Element.none
+                        ]
+                    ]
+
+            Nothing ->
+                Element.none
+        ]
+
+
+githubUrlView model =
+    Element.column
+        [ Element.spacing 8, Element.width Element.fill ]
+        [ Element.Input.text
+            []
+            { onChange = TypedGithubUrl
+            , text = model.githubUrl
+            , placeholder = Nothing
+            , label =
+                Element.Input.labelAbove
+                    []
+                    (Element.row
+                        []
+                        [ Element.text "Github repo url (i.e. https://github.com/owner/repo-name)"
+                        ]
+                    )
+            }
+        , case ( validateGithubUrl model.githubUrl, model.pressedSubmit ) of
+            ( Nothing, True ) ->
+                Element.paragraph
+                    [ Element.Font.color errorColor ]
+                    [ Element.text "Choose which repo to translate" ]
+
+            _ ->
+                Element.none
         ]
 
 
